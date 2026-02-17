@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Desperse Brand Colors (matching web) -->
+    <color name="highlight">#FF6366F1</color>           <!-- Indigo-500 -->
+    <color name="highlight_dark">#FF4F46E5</color>      <!-- Indigo-600 -->
+    <color name="background">#FF09090B</color>          <!-- Zinc-950 -->
+    <color name="black">#FF000000</color>                <!-- Pure black for launcher -->
+    <color name="surface">#FF18181B</color>             <!-- Zinc-900 -->
+    <color name="surface_variant">#FF27272A</color>     <!-- Zinc-800 -->
+    <color name="border">#FF3F3F46</color>              <!-- Zinc-700 -->
+    <color name="text_primary">#FFFAFAFA</color>        <!-- Zinc-50 -->
+    <color name="text_secondary">#FFA1A1AA</color>      <!-- Zinc-400 -->
+    <color name="text_muted">#FF71717A</color>          <!-- Zinc-500 -->
+    <color name="error">#FFEF4444</color>               <!-- Red-500 -->
+    <color name="success">#FF22C55E</color>             <!-- Green-500 -->
+    <color name="warning">#FFF59E0B</color>             <!-- Amber-500 -->
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Use AppCompat theme since the app is Compose-based -->
+    <style name="Theme.Desperse" parent="Theme.AppCompat.NoActionBar">
+        <!-- Primary colors -->
+        <item name="colorPrimary">@color/highlight</item>
+        <item name="colorPrimaryDark">@color/highlight_dark</item>
+        <item name="colorAccent">@color/highlight</item>
+
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/background</item>
+        <item name="android:windowBackground">@color/background</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+    </style>
+</resources>

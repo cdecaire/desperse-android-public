@@ -1,0 +1,8 @@
+# Android SDK path (auto-populated by Android Studio)
+# sdk.dir=/path/to/android/sdk
+
+# Desperse Configuration
+PRIVY_APP_ID=your-privy-app-id
+API_BASE_URL=https://desperse.com
+SENTRY_DSN=https://...@sentry.io/...
+HELIUS_API_KEY=your-helius-api-key
