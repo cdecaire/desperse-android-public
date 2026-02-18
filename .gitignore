@@ -62,3 +62,6 @@ Thumbs.db
 # Sentry
 sentry.properties
 nul
+
+# Claude Code
+.claude/

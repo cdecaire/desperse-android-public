@@ -35,6 +35,12 @@ android {
             useSupportLibrary = true
         }
 
+        ndk {
+            // Only include ABIs for real devices - exclude deprecated mips/mips64
+            // which can trigger Google Play Protect heuristics
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+        }
+
         // Build config fields from local.properties
         buildConfigField("String", "PRIVY_APP_ID", "\"${localProperties.getProperty("PRIVY_APP_ID", "")}\"")
         buildConfigField("String", "PRIVY_APP_CLIENT_ID", "\"${localProperties.getProperty("PRIVY_APP_CLIENT_ID", "")}\"")

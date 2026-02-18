@@ -10,6 +10,10 @@
 -keep class io.privy.** { *; }
 -dontwarn io.privy.**
 
+# === ANDROIDX BROWSER / CHROME CUSTOM TABS (used by Privy for OAuth) ===
+-keep class androidx.browser.** { *; }
+-dontwarn androidx.browser.**
+
 # === MWA / SOLANA MOBILE (ships empty proguard.txt) ===
 -keep class com.solana.mobilewalletadapter.** { *; }
 -keep class com.solanamobile.** { *; }

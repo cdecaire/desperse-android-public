@@ -12,11 +12,21 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
-    <!-- MWA: Allow discovery of Solana wallet apps on Android 11+ (API 30+) -->
+    <!-- Android 11+ (API 30+) package visibility -->
     <queries>
+        <!-- MWA: Discover Solana wallet apps -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="solana-wallet" />
+        </intent>
+        <!-- Privy OAuth: Discover browsers for Chrome Custom Tabs -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="androidx.browser.customtabs.action.CustomTabsService" />
         </intent>
     </queries>
 
