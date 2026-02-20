@@ -26,8 +26,8 @@ android {
         applicationId = "app.desperse.android"
         minSdk = 28  // Required by Privy SDK
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -58,6 +58,8 @@ android {
                 keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS", "")
                 keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
             }
+            enableV3Signing = true
+            enableV4Signing = true
         }
     }
 
@@ -135,8 +137,6 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.android.compiler)
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.hilt.work)
-    ksp(libs.hilt.work.compiler)
 
     // Privy Auth
     implementation(libs.privy.core)
@@ -174,9 +174,6 @@ dependencies {
 
     // Ably Realtime
     implementation(libs.ably)
-
-    // WorkManager
-    implementation(libs.work.runtime.ktx)
 
     // Sentry
     implementation(libs.sentry.android)
