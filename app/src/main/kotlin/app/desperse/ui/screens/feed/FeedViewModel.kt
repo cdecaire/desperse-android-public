@@ -525,9 +525,10 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             // Step 1: Get unsigned transaction from server
             updatePurchaseState(postId, PurchaseState.Preparing)
-            Log.d(TAG, "Step 1: Requesting unsigned transaction for post $postId")
+            val walletAddress = transactionWalletManager.getActiveWalletAddress()
+            Log.d(TAG, "Step 1: Requesting unsigned transaction for post $postId, wallet=${walletAddress?.take(8)}...")
 
-            postRepository.buyEdition(postId)
+            postRepository.buyEdition(postId, walletAddress)
                 .onSuccess { buyResult ->
                     Log.d(TAG, "Got unsigned tx, purchaseId=${buyResult.purchaseId}")
 

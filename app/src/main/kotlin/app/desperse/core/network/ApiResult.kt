@@ -1,6 +1,7 @@
 package app.desperse.core.network
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import retrofit2.Response
 import java.io.IOException
 
@@ -27,6 +28,13 @@ data class ApiError(
 data class ApiMeta(
     val hasMore: Boolean? = null,
     val nextCursor: String? = null
+)
+
+@Serializable
+data class ErrorEnvelope(
+    val success: Boolean = false,
+    val error: ApiError? = null,
+    val requestId: String? = null
 )
 
 /**
@@ -56,6 +64,7 @@ enum class ErrorCode {
     PURCHASE_NOT_FOUND,
     EDITION_SOLD_OUT,
     INSUFFICIENT_BALANCE,
+    INSUFFICIENT_FUNDS,
     DUPLICATE_WALLET,
     UNKNOWN
 }
@@ -74,6 +83,8 @@ fun parseErrorCode(code: String): ErrorCode {
 suspend fun <T> safeApiCall(
     block: suspend () -> Response<ApiEnvelope<T>>
 ): ApiResult<T> {
+    val errorJson = Json { ignoreUnknownKeys = true }
+
     return try {
         val response = block()
         val body = response.body()
@@ -101,7 +112,28 @@ suspend fun <T> safeApiCall(
                 )
             }
             else -> {
-                ApiResult.Error(ErrorCode.SERVER_ERROR, "Server error", requestId, response.code())
+                // For non-2xx responses, Retrofit puts the body in errorBody()
+                val errorBody = response.errorBody()?.string()
+                if (errorBody != null) {
+                    try {
+                        val envelope = errorJson.decodeFromString<ErrorEnvelope>(errorBody)
+                        val rid = envelope.requestId ?: requestId
+                        if (envelope.error != null) {
+                            ApiResult.Error(
+                                parseErrorCode(envelope.error.code),
+                                envelope.error.message,
+                                rid,
+                                response.code()
+                            )
+                        } else {
+                            ApiResult.Error(ErrorCode.SERVER_ERROR, "Server error", rid, response.code())
+                        }
+                    } catch (_: Exception) {
+                        ApiResult.Error(ErrorCode.SERVER_ERROR, "Server error", requestId, response.code())
+                    }
+                } else {
+                    ApiResult.Error(ErrorCode.SERVER_ERROR, "Server error", requestId, response.code())
+                }
             }
         }
     } catch (e: IOException) {

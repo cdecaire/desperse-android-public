@@ -26,8 +26,8 @@ android {
         applicationId = "app.desperse.android"
         minSdk = 28  // Required by Privy SDK
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -154,6 +154,7 @@ dependencies {
 
     // Media
     implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
 

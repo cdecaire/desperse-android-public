@@ -648,7 +648,10 @@ class PrivyAuthManager @Inject constructor(
             pendingSiwsParams = params
 
             Log.d(TAG, "Generating SIWS message for ${walletAddress.take(8)}...")
-            val result = p.siws.generateMessage(params)
+            // Privy SDK requires Main thread for SIWS operations
+            val result = withContext(Dispatchers.Main) {
+                p.siws.generateMessage(params)
+            }
             result.fold(
                 onSuccess = { message ->
                     Log.d(TAG, "SIWS message generated (length=${message.length})")

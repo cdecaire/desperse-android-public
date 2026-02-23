@@ -15,9 +15,15 @@
 -dontwarn androidx.browser.**
 
 # === MWA / SOLANA MOBILE (ships empty proguard.txt) ===
--keep class com.solana.mobilewalletadapter.** { *; }
+# com.solana.** covers mobilewalletadapter (clientlib, common) AND
+# com.solana.publickey (SolanaPublicKey.base58() used in MWA auth flow —
+# without this, R8 strips base58() and Phantom login crashes in release builds)
+-keep class com.solana.** { *; }
 -keep class com.solanamobile.** { *; }
+-keep class com.funkatronics.** { *; }
 -dontwarn com.solana.**
+-dontwarn com.ditchoom.buffer.**
+-dontwarn com.funkatronics.**
 
 # === JNA & LAZYSODIUM (ship NO rules, use JNI/native) ===
 -keep class com.sun.jna.** { *; }
