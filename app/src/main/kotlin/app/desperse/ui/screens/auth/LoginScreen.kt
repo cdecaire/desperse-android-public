@@ -72,7 +72,13 @@ fun LoginScreen(
     // Connect wallet: show picker if multiple wallets, otherwise connect directly
     val connectToWallet = remember(activity, viewModel) {
         { wallet: InstalledWallet ->
-            if (viewModel.shouldUseDeeplink(wallet.packageName)) {
+            if (viewModel.shouldTryMwaFirst(wallet.packageName)) {
+                viewModel.loginWithMwa(
+                    activity = activity,
+                    targetPackage = wallet.packageName,
+                    fallbackToDeeplinkOnMwaFailure = true
+                )
+            } else if (viewModel.shouldUseDeeplink(wallet.packageName)) {
                 viewModel.loginWithDeeplink(activity, wallet.packageName)
             } else {
                 viewModel.loginWithMwa(activity, wallet.packageName)

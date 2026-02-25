@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +20,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import app.desperse.core.preferences.ThemeMode
 import app.desperse.core.preferences.ThemePreferences
 import app.desperse.core.wallet.DeeplinkWalletManager
+import app.desperse.core.wallet.MwaManager
 import app.desperse.ui.navigation.AuthGateViewModel
 import app.desperse.ui.navigation.DesperseNavGraph
 import app.desperse.ui.theme.DesperseTheme
@@ -35,6 +37,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var deeplinkWalletManager: DeeplinkWalletManager
 
+    @Inject
+    lateinit var mwaManager: MwaManager
+
     /** Activity-scoped ViewModel - survives recomposition and prevents duplicate instances */
     private val authGateViewModel: AuthGateViewModel by viewModels()
 
@@ -43,10 +48,26 @@ class MainActivity : ComponentActivity() {
 
     private val _walletCallbacks = MutableSharedFlow<android.net.Uri>(replay = 1, extraBufferCapacity = 1)
 
+    /**
+     * ActivityResultLauncher for MWA wallet intents. Registered before super.onCreate()
+     * (before STARTED state) as required by the Activity Result API.
+     * Uses startActivityForResult like the official MWA SDK for better lifecycle handling.
+     */
+    private val mwaLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        Log.d("MainActivity", "MWA activity result: resultCode=${result.resultCode}")
+        // Result is informational only — MWA communication happens via WebSocket.
+        // The launcher provides better window/lifecycle management than startActivity().
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         Trace.beginSection("MainActivity.onCreate")
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Wire the ActivityResultLauncher to MwaManager for proper MWA intent launching
+        mwaManager.setActivityResultLauncher(mwaLauncher)
 
         // Check if this activity was launched with a wallet callback intent
         // (happens when activity is recreated instead of receiving onNewIntent)
@@ -104,6 +125,12 @@ class MainActivity : ComponentActivity() {
         }
 
         deepLinkTrigger.intValue++
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Clear the launcher reference so MwaManager doesn't hold a stale launcher
+        mwaManager.setActivityResultLauncher(null)
     }
 
     private fun handleDeepLink(intent: Intent?, navController: androidx.navigation.NavController) {

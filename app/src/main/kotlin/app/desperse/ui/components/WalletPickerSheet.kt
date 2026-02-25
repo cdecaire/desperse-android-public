@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -173,6 +174,44 @@ private fun WalletIcon(walletClientType: String) {
             Image(
                 painter = painterResource(R.drawable.ic_solflare),
                 contentDescription = "Solflare",
+                modifier = Modifier
+                    .size(iconSize)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        }
+        "jupiter" -> {
+            Image(
+                painter = painterResource(R.drawable.ic_jupiter),
+                contentDescription = "Jupiter",
+                modifier = Modifier
+                    .size(iconSize)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        }
+        "seeker" -> {
+            Box(
+                modifier = Modifier
+                    .size(iconSize)
+                    .clip(CircleShape)
+                    .background(Color(0xFF9945FF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_seeker_s),
+                    contentDescription = "Seeker",
+                    modifier = Modifier
+                        .size(iconSize - iconPadding * 2),
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(Color.White)
+                )
+            }
+        }
+        "backpack" -> {
+            Image(
+                painter = painterResource(R.drawable.ic_backpack),
+                contentDescription = "Backpack",
                 modifier = Modifier
                     .size(iconSize)
                     .clip(CircleShape),

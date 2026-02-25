@@ -45,11 +45,17 @@ class DeeplinkWalletManager @Inject constructor(
         val WALLET_DEEPLINK_URLS = mapOf(
             "com.solflare.mobile" to "https://solflare.com/ul/v1",
             "app.phantom" to "https://phantom.app/ul/v1",
+            "app.backpack.mobile" to "https://backpack.app/ul/v1",
+            "app.backpack.mobile.standalone" to "https://backpack.app/ul/v1",
         )
 
-        /** Wallets that should use deeplinks instead of MWA */
+        /** Wallets that should use deeplinks instead of MWA.
+         *  Backpack: MWA broken (ECONNREFUSED — never starts WebSocket server).
+         *  Solflare: Deeplink preferred per original config. */
         val DEEPLINK_PREFERRED_PACKAGES = setOf(
             "com.solflare.mobile",
+            "app.backpack.mobile",
+            "app.backpack.mobile.standalone",
         )
 
         private const val PREFS_NAME = "deeplink_wallet_session"
@@ -174,6 +180,8 @@ class DeeplinkWalletManager @Inject constructor(
 
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // Don't setPackage() for https:// universal links — it can bypass the wallet's
+        // deep link handler Activity. Let Android resolve via Digital Asset Links instead.
         return intent
     }
 
@@ -375,6 +383,7 @@ class DeeplinkWalletManager @Inject constructor(
             "app.phantom" -> "phantom"
             "com.solflare.mobile" -> "solflare"
             "com.solanamobile.wallet" -> "seeker"
+            "app.backpack.mobile", "app.backpack.mobile.standalone" -> "backpack"
             else -> "unknown"
         }
     }

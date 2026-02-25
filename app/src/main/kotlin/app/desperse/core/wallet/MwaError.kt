@@ -24,6 +24,17 @@ sealed class MwaError : Exception() {
     data class WalletRejected(val code: Int, override val message: String) : MwaError()
 
     data class Unknown(override val cause: Throwable) : MwaError()
+
+    /**
+     * Authorization succeeded inside a single-session authorizeAndSignMessage flow,
+     * but the messageProvider failed (e.g., Privy foreground requirement).
+     * Carries the [authResult] so the caller can fall back to a two-step flow
+     * without re-authorizing.
+     */
+    data class MessageProviderFailed(
+        val authResult: MwaAuthResult,
+        override val cause: Throwable
+    ) : MwaError()
 }
 
 /**
@@ -35,5 +46,6 @@ fun MwaError.userFacingMessage(): String = when (this) {
     is MwaError.SessionTerminated -> "Wallet connection lost. Please try again."
     is MwaError.Timeout -> "Wallet did not respond. Please ensure your wallet app is open."
     is MwaError.WalletRejected -> "Wallet rejected the request: $message"
+    is MwaError.MessageProviderFailed -> "Sign-in preparation failed. Retrying..."
     is MwaError.Unknown -> "An unexpected error occurred. Please try again."
 }

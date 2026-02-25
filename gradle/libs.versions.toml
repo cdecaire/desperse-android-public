@@ -27,7 +27,7 @@ media3 = "1.9.2"
 
 # Auth & Wallet (VERIFY on Maven Central before use)
 privy = "0.9.2-beta.1"
-mwa = "2.0.3"
+mwa = "2.1.0"
 web3-solana = "0.2.5"
 rpc-core = "0.2.7"
 zxing = "3.5.4"

@@ -2,6 +2,8 @@ package app.desperse.ui.screens.auth
 
 import android.app.Activity
 import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.desperse.core.auth.AuthState
@@ -9,11 +11,13 @@ import app.desperse.core.auth.OAuthProvider
 import app.desperse.core.auth.PrivyAuthManager
 import app.desperse.core.wallet.DeeplinkWalletManager
 import app.desperse.core.wallet.InstalledMwaWallet
+import app.desperse.core.wallet.MwaAuthResult
 import app.desperse.core.wallet.MwaError
 import app.desperse.core.wallet.MwaManager
 import app.desperse.core.wallet.WalletPreferences
 import app.desperse.core.wallet.userFacingMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +47,10 @@ class LoginViewModel @Inject constructor(
     private val deeplinkWalletManager: DeeplinkWalletManager,
     private val walletPreferences: WalletPreferences
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "LoginViewModel"
+        private const val SOLFLARE_PACKAGE = "com.solflare.mobile"
+    }
 
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -62,10 +70,6 @@ class LoginViewModel @Inject constructor(
 
     /** List of installed MWA wallet apps (excludes system services like Seed Vault). */
     val installedWallets: List<InstalledMwaWallet> get() = mwaManager.getInstalledWallets()
-
-    companion object {
-        private const val TAG = "LoginViewModel"
-    }
 
     init {
         // Watch for auth state changes - navigate when authenticated
@@ -160,70 +164,156 @@ class LoginViewModel @Inject constructor(
     /**
      * Initiate login via MWA (Mobile Wallet Adapter) using Privy native SIWS.
      *
-     * Flow:
-     * 1. MWA authorize → get wallet address
-     * 2. privy.siws.generateMessage() → get challenge
-     * 3. MWA sign message → get signature bytes
-     * 4. privy.siws.login() → PrivyUser with proper Privy JWT
-     * 5. Standard Privy auth flow (token refresh, session restore, etc.)
+     * Attempts a single-session flow (one wallet redirect) via authorizeAndSignMessage.
+     * If the Privy challenge generation fails from background (foreground requirement),
+     * automatically falls back to a two-step flow using the captured auth result.
+     *
+     * Single-session flow (best case — one wallet redirect):
+     * 1. MWA session: authorize → messageProvider generates SIWS → sign → done
+     * 2. Wait for foreground → privy.siws.login()
+     *
+     * Two-step fallback (if Privy needs foreground for challenge generation):
+     * 1. MWA session 1: authorize → messageProvider fails → auth result captured
+     * 2. Back in foreground: privy.siws.generateMessage()
+     * 3. MWA session 2: reauthorize + sign
+     * 4. privy.siws.login()
      */
-    fun loginWithMwa(activity: Activity, targetPackage: String? = null) {
+    fun loginWithMwa(
+        activity: Activity,
+        targetPackage: String? = null,
+        fallbackToDeeplinkOnMwaFailure: Boolean = false
+    ) {
         _uiState.value = LoginUiState.MwaConnecting
 
         viewModelScope.launch {
-            var siwsMessage: String? = null
-            var walletClientType: String? = null
+            Log.d(TAG, "SIWS: Attempting single-session authorize+sign")
 
-            // Single MWA session: authorize + sign in one wallet redirect
-            val result = mwaManager.authorizeAndSignMessage(activity, targetPackage) { walletAddress ->
-                Log.d(TAG, "SIWS: Generating Privy challenge for ${walletAddress.take(8)}...")
+            // Capture the SIWS message from the messageProvider so we can pass the
+            // exact same message (with matching nonce) to loginWithSiws later.
+            var capturedSiwsMessage: String? = null
 
-                val generateResult = privyAuthManager.generateSiwsMessage(walletAddress)
-                val message = generateResult.getOrElse { error ->
-                    Log.e(TAG, "SIWS: Failed to generate message: ${error.message}")
-                    throw error
-                }
-
-                Log.d(TAG, "SIWS: Got Privy challenge (length=${message.length})")
-                siwsMessage = message
+            val result = mwaManager.authorizeAndSignMessage(activity, targetPackage) { address ->
+                Log.d(TAG, "SIWS: messageProvider called for ${address.take(8)}...")
+                val message = privyAuthManager.generateSiwsMessage(address).getOrThrow()
+                capturedSiwsMessage = message
+                Log.d(TAG, "SIWS: Got Privy challenge in-session (length=${message.length})")
                 message.toByteArray(Charsets.UTF_8)
             }
 
             result.fold(
                 onSuccess = { (authResult, signatureBytes) ->
-                    Log.d(TAG, "SIWS: Authorize + sign complete for ${authResult.address.take(8)}...")
-                    walletClientType = authResult.walletClientType
+                    val siwsMessage = capturedSiwsMessage!!
+                    Log.d(TAG, "SIWS: Single-session succeeded for ${authResult.address.take(8)}...")
 
-                    // Persist which wallet app was used so future transactions target it directly
                     if (targetPackage != null) {
                         walletPreferences.setActiveWalletPackage(targetPackage)
                     }
 
-                    _uiState.value = LoginUiState.Loading
-                    val base64Sig = android.util.Base64.encodeToString(signatureBytes, android.util.Base64.NO_WRAP)
-
-                    privyAuthManager.loginWithSiws(
-                        message = siwsMessage!!,
-                        signature = base64Sig,
-                        walletClientType = walletClientType ?: "unknown"
-                    ).fold(
-                        onSuccess = { user ->
-                            Log.d(TAG, "SIWS: Privy login successful, user=${user.id}")
-                            // Auth state collector will handle the success event
-                        },
-                        onFailure = { error ->
-                            Log.e(TAG, "SIWS: Privy login failed: ${error.message}")
-                            _uiState.value = LoginUiState.Error(
-                                error.message ?: "Wallet login failed"
-                            )
-                        }
-                    )
+                    waitForForeground()
+                    completeSiwsLogin(authResult, siwsMessage, signatureBytes)
                 },
                 onFailure = { error ->
-                    handleMwaError(error)
+                    if (error is MwaError.MessageProviderFailed) {
+                        // Authorization succeeded but SIWS generation failed (likely foreground issue).
+                        // Fall back to two-step: generate SIWS in foreground, then sign in second session.
+                        Log.d(TAG, "SIWS: Falling back to two-step (messageProvider failed: ${error.cause.message})")
+                        loginWithMwaTwoStep(activity, error.authResult, targetPackage)
+                    } else {
+                        if (
+                            fallbackToDeeplinkOnMwaFailure &&
+                            !targetPackage.isNullOrBlank() &&
+                            shouldFallbackFromMwaToDeeplink(error)
+                        ) {
+                            Log.w(TAG, "SIWS: MWA failed for $targetPackage, falling back to deeplink", error)
+                            loginWithDeeplink(activity, targetPackage)
+                        } else {
+                            handleMwaError(error)
+                        }
+                    }
                 }
             )
         }
+    }
+
+    /**
+     * Two-step MWA fallback: authorization already completed, need to generate SIWS
+     * challenge in foreground and sign in a second MWA session.
+     */
+    private suspend fun loginWithMwaTwoStep(
+        activity: Activity,
+        authResult: MwaAuthResult,
+        targetPackage: String?
+    ) {
+        Log.d(TAG, "SIWS two-step: Generating Privy challenge (foreground)")
+        _uiState.value = LoginUiState.Loading
+
+        val siwsMessage = privyAuthManager.generateSiwsMessage(authResult.address).getOrElse { error ->
+            Log.e(TAG, "SIWS two-step: Failed to generate message: ${error.message}")
+            _uiState.value = LoginUiState.Error(error.message ?: "Failed to prepare sign-in")
+            return
+        }
+
+        Log.d(TAG, "SIWS two-step: Got challenge (length=${siwsMessage.length}), signing in second session")
+        _uiState.value = LoginUiState.MwaSigning
+
+        val signatureBytes = mwaManager.signMessage(
+            activity,
+            siwsMessage.toByteArray(Charsets.UTF_8),
+            targetPackage
+        ).getOrElse { error ->
+            handleMwaError(error)
+            return
+        }
+
+        if (targetPackage != null) {
+            walletPreferences.setActiveWalletPackage(targetPackage)
+        }
+
+        waitForForeground()
+        completeSiwsLogin(authResult, siwsMessage, signatureBytes)
+    }
+
+    /**
+     * Complete the SIWS login flow. Shared by both single-session and two-step paths.
+     * Uses the exact SIWS message that was signed (same nonce) for Privy verification.
+     */
+    private suspend fun completeSiwsLogin(
+        authResult: MwaAuthResult,
+        siwsMessage: String,
+        signatureBytes: ByteArray
+    ) {
+        _uiState.value = LoginUiState.Loading
+        val base64Sig = android.util.Base64.encodeToString(signatureBytes, android.util.Base64.NO_WRAP)
+        Log.d(TAG, "SIWS: Completing Privy login for ${authResult.address.take(8)}...")
+
+        privyAuthManager.loginWithSiws(
+            message = siwsMessage,
+            signature = base64Sig,
+            walletClientType = authResult.walletClientType
+        ).fold(
+            onSuccess = { user ->
+                Log.d(TAG, "SIWS: Privy login successful, user=${user.id}")
+                // Auth state collector will handle the success event
+            },
+            onFailure = { error ->
+                Log.e(TAG, "SIWS: Privy login failed: ${error.message}")
+                _uiState.value = LoginUiState.Error(error.message ?: "Wallet login failed")
+            }
+        )
+    }
+
+    /**
+     * Wait for app to return to foreground after MWA session.
+     * MWA WebSocket delivers the response before our Activity resumes.
+     */
+    private suspend fun waitForForeground() {
+        val appLifecycle = ProcessLifecycleOwner.get().lifecycle
+        var foregroundWait = 0
+        while (!appLifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && foregroundWait < 100) {
+            delay(50)
+            foregroundWait++
+        }
+        Log.d(TAG, "SIWS: Foreground wait: ${foregroundWait * 50}ms")
     }
 
     /**
@@ -369,6 +459,24 @@ class LoginViewModel @Inject constructor(
     /** Whether a wallet package should use deeplinks instead of MWA. */
     fun shouldUseDeeplink(packageName: String): Boolean {
         return deeplinkWalletManager.shouldUseDeeplink(packageName)
+    }
+
+    /** Solflare experiment: attempt MWA first, fallback to deeplink on transport/runtime failures. */
+    fun shouldTryMwaFirst(packageName: String): Boolean {
+        return packageName == SOLFLARE_PACKAGE
+    }
+
+    private fun shouldFallbackFromMwaToDeeplink(error: Throwable): Boolean {
+        return when (error) {
+            is MwaError.Timeout,
+            is MwaError.SessionTerminated,
+            is MwaError.NoWalletInstalled,
+            is MwaError.Unknown -> true
+            is MwaError.UserCancelled,
+            is MwaError.WalletRejected,
+            is MwaError.MessageProviderFailed -> false
+            else -> true
+        }
     }
 
     /**
