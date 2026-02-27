@@ -14,6 +14,8 @@ data class User(
     val headerUrl: String? = null,
     val walletAddress: String? = null,
     val website: String? = null,
+    val twitterUsername: String? = null,
+    val instagramUsername: String? = null,
     val isVerified: Boolean = false,
     val followerCount: Int = 0,
     val followingCount: Int = 0,

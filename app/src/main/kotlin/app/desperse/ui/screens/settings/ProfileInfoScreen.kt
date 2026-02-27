@@ -74,12 +74,18 @@ class ProfileInfoViewModel @Inject constructor(
         private set
     var website by mutableStateOf("")
         private set
+    var twitterUsername by mutableStateOf("")
+        private set
+    var instagramUsername by mutableStateOf("")
+        private set
 
     // Track initial values for dirty checking
     private var initialDisplayName = ""
     private var initialBio = ""
     private var initialUsername = ""
     private var initialWebsite = ""
+    private var initialTwitterUsername = ""
+    private var initialInstagramUsername = ""
 
     var isSaving by mutableStateOf(false)
         private set
@@ -92,7 +98,9 @@ class ProfileInfoViewModel @Inject constructor(
         get() = displayName != initialDisplayName ||
                 bio != initialBio ||
                 username != initialUsername ||
-                website != initialWebsite
+                website != initialWebsite ||
+                twitterUsername != initialTwitterUsername ||
+                instagramUsername != initialInstagramUsername
 
     init {
         viewModelScope.launch {
@@ -102,11 +110,15 @@ class ProfileInfoViewModel @Inject constructor(
                     bio = it.bio ?: ""
                     username = it.slug ?: ""
                     website = it.website ?: ""
+                    twitterUsername = it.twitterUsername ?: ""
+                    instagramUsername = it.instagramUsername ?: ""
                     // Store initial values
                     initialDisplayName = displayName
                     initialBio = bio
                     initialUsername = username
                     initialWebsite = website
+                    initialTwitterUsername = twitterUsername
+                    initialInstagramUsername = instagramUsername
                 }
             }
         }
@@ -129,15 +141,35 @@ class ProfileInfoViewModel @Inject constructor(
         website = value
     }
 
+    fun updateTwitterUsername(value: String) {
+        val filtered = value.removePrefix("@").lowercase().filter { it.isLetterOrDigit() || it == '_' }
+        if (filtered.length <= 15) twitterUsername = filtered
+    }
+
+    fun updateInstagramUsername(value: String) {
+        val filtered = value.removePrefix("@").lowercase().filter { it.isLetterOrDigit() || it == '_' || it == '.' }
+        if (filtered.length <= 30) instagramUsername = filtered
+    }
+
     fun save() {
         viewModelScope.launch {
             isSaving = true
             try {
+                // Normalize website URL before saving
+                val normalizedWebsite = website.trim().takeIf { it.isNotBlank() }?.let { url ->
+                    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                        "https://$url"
+                    } else url
+                }
+                if (normalizedWebsite != null) website = normalizedWebsite
+
                 val result = userRepository.updateProfile(
                     displayName = displayName.takeIf { it.isNotBlank() },
                     bio = bio.takeIf { it.isNotBlank() },
                     usernameSlug = username.takeIf { it.isNotBlank() && username != initialUsername },
-                    website = website.takeIf { it.isNotBlank() }
+                    website = normalizedWebsite,
+                    twitterUsername = if (twitterUsername != initialTwitterUsername) twitterUsername.ifBlank { "" } else null,
+                    instagramUsername = if (instagramUsername != initialInstagramUsername) instagramUsername.ifBlank { "" } else null
                 )
                 result.fold(
                     onSuccess = {
@@ -146,6 +178,8 @@ class ProfileInfoViewModel @Inject constructor(
                         initialBio = bio
                         initialUsername = username
                         initialWebsite = website
+                        initialTwitterUsername = twitterUsername
+                        initialInstagramUsername = instagramUsername
                         _events.emit(ProfileInfoEvent.Saved)
                     },
                     onFailure = { error ->
@@ -578,9 +612,61 @@ fun ProfileInfoScreen(
                         )
                     )
                     Text(
-                        text = "Your portfolio, website, or social media link",
+                        text = "Your portfolio or personal website",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // X (Twitter)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "X (Twitter)",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = viewModel.twitterUsername,
+                        onValueChange = { viewModel.updateTwitterUsername(it) },
+                        placeholder = { Text("username") },
+                        prefix = { Text("@") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Next
+                        ),
+                        trailingIcon = {
+                            Text(
+                                text = "${viewModel.twitterUsername.length}/15",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    )
+                }
+
+                // Instagram
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Instagram",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    OutlinedTextField(
+                        value = viewModel.instagramUsername,
+                        onValueChange = { viewModel.updateInstagramUsername(it) },
+                        placeholder = { Text("username") },
+                        prefix = { Text("@") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = ImeAction.Next
+                        ),
+                        trailingIcon = {
+                            Text(
+                                text = "${viewModel.instagramUsername.length}/30",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     )
                 }
 

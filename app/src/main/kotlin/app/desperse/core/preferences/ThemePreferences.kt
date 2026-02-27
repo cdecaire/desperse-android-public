@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -49,6 +51,7 @@ class AppPreferences @Inject constructor(
 ) {
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val explorerKey = stringPreferencesKey("explorer")
+    private val lastSeenVersionCodeKey = intPreferencesKey("last_seen_version_code")
 
     /**
      * Flow of current theme mode preference
@@ -84,6 +87,25 @@ class AppPreferences @Inject constructor(
                 ThemeMode.LIGHT -> "light"
                 ThemeMode.DARK -> "dark"
             }
+        }
+    }
+
+    /**
+     * Get the last version code the user has seen the "What's New" sheet for.
+     * Returns 0 if never set (first install).
+     */
+    suspend fun getLastSeenVersionCode(): Int {
+        return context.appDataStore.data.map { preferences ->
+            preferences[lastSeenVersionCodeKey] ?: 0
+        }.first()
+    }
+
+    /**
+     * Mark the current version as seen so the "What's New" sheet won't show again.
+     */
+    suspend fun setLastSeenVersionCode(versionCode: Int) {
+        context.appDataStore.edit { preferences ->
+            preferences[lastSeenVersionCodeKey] = versionCode
         }
     }
 

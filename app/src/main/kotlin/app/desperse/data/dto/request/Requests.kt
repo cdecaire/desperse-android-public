@@ -128,6 +128,8 @@ data class UpdateProfileRequest(
     val bio: String? = null,
     val usernameSlug: String? = null,
     val website: String? = null,
+    val twitterUsername: String? = null,
+    val instagramUsername: String? = null,
     val avatarUrl: String? = null,
     val headerUrl: String? = null
 )

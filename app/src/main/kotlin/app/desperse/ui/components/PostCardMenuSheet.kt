@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.desperse.core.download.GatedDownloadManager
 import app.desperse.core.preferences.ExplorerOption
+import app.desperse.core.util.openInAppBrowser
 import app.desperse.data.model.Post
 import app.desperse.ui.components.media.MediaType
 import app.desperse.ui.components.media.detectMediaType
@@ -256,8 +257,7 @@ fun PostCardMenuSheet(
                         label = "View on explorer",
                         onClick = {
                             val explorerUrl = explorerOption.getExplorerUrl(explorerAddress!!)
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(explorerUrl))
-                            context.startActivity(intent)
+                            context.openInAppBrowser(explorerUrl)
                             onDismiss()
                         }
                     )

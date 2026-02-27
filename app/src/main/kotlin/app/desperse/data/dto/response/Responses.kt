@@ -53,6 +53,8 @@ data class ProfileUser(
     val avatarUrl: String? = null,
     val headerBgUrl: String? = null,
     val link: String? = null,
+    val twitterUsername: String? = null,
+    val instagramUsername: String? = null,
     val createdAt: String? = null
 )
 
@@ -482,6 +484,8 @@ data class UpdatedUser(
     val avatarUrl: String? = null,
     val headerBgUrl: String? = null,
     val link: String? = null,
+    val twitterUsername: String? = null,
+    val instagramUsername: String? = null,
     val walletAddress: String? = null
 )
 

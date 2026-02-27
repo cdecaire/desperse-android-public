@@ -321,6 +321,8 @@ class UserRepository @Inject constructor(
         bio: String? = null,
         usernameSlug: String? = null,
         website: String? = null,
+        twitterUsername: String? = null,
+        instagramUsername: String? = null,
         avatarUrl: String? = null,
         headerUrl: String? = null
     ): Result<User> {
@@ -331,6 +333,8 @@ class UserRepository @Inject constructor(
             bio = bio,
             usernameSlug = usernameSlug,
             website = website,
+            twitterUsername = twitterUsername,
+            instagramUsername = instagramUsername,
             avatarUrl = avatarUrl,
             headerUrl = headerUrl
         )
@@ -347,7 +351,9 @@ class UserRepository @Inject constructor(
                         bio = updatedUser.bio,
                         avatarUrl = updatedUser.avatarUrl,
                         headerUrl = updatedUser.headerBgUrl,
-                        website = updatedUser.link
+                        website = updatedUser.link,
+                        twitterUsername = updatedUser.twitterUsername,
+                        instagramUsername = updatedUser.instagramUsername
                     )
                     _currentUser.value = newUser
                     Log.d(TAG, "Profile updated successfully: ${newUser.slug}")

@@ -57,6 +57,7 @@ kotlinx-coroutines = "1.10.2"
 core-ktx = "1.17.0"
 activity-compose = "1.12.3"
 appcompat = "1.7.1"
+browser = "1.8.0"
 
 [libraries]
 # Kotlin
@@ -78,6 +79,7 @@ compose-ui-text-google-fonts = { group = "androidx.compose.ui", name = "ui-text-
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
 activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }
 appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 
 # Lifecycle
 lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
@@ -134,6 +136,7 @@ sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "
 
 # Firebase
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 
 # Testing

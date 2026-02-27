@@ -63,6 +63,7 @@ import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.FeedbackSheet
 import app.desperse.ui.components.MoreMenuSheet
+import app.desperse.ui.components.WhatsNewSheet
 import app.desperse.ui.components.ToastManager
 import app.desperse.ui.components.ToastVariant
 import app.desperse.ui.components.UnreadDot
@@ -82,6 +83,7 @@ import app.desperse.ui.screens.profile.FollowListScreen
 import app.desperse.ui.screens.profile.FollowListType
 import app.desperse.ui.screens.profile.ProfileScreen
 import app.desperse.ui.screens.settings.AppSettingsScreen
+import app.desperse.ui.screens.settings.ChangelogScreen
 import app.desperse.ui.screens.settings.HelpScreen
 import app.desperse.ui.screens.settings.MessagingSettingsScreen
 import app.desperse.ui.screens.settings.NotificationSettingsScreen
@@ -91,8 +93,12 @@ import app.desperse.ui.screens.settings.WalletsSettingsScreen
 import app.desperse.ui.components.WalletSheet
 import app.desperse.ui.theme.DesperseSizes
 import coil.compose.AsyncImage
+import app.desperse.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -111,6 +117,10 @@ class AuthGateViewModel @Inject constructor(
     val toastManager: ToastManager
 ) : ViewModel() {
     val authState = privyAuthManager.authState
+
+    /** Whether to show the "What's New" sheet */
+    private val _showWhatsNew = MutableStateFlow(false)
+    val showWhatsNew: StateFlow<Boolean> = _showWhatsNew.asStateFlow()
 
     /** The current user's full profile from the API */
     val currentUser = userRepository.currentUser
@@ -169,6 +179,8 @@ class AuthGateViewModel @Inject constructor(
                         syncPreferencesFromServer()
                         // Register push token for notifications
                         pushTokenManager.ensureTokenRegistered()
+                        // Check if we should show "What's New" after an update
+                        checkWhatsNew()
                     }
                     is AuthState.Unauthenticated, is AuthState.Error -> {
                         // Clear user data on logout
@@ -225,6 +237,27 @@ class AuthGateViewModel @Inject constructor(
                 }
                 is ApiResult.Error -> { /* Use local values */ }
             }
+        }
+    }
+
+    private fun checkWhatsNew() {
+        viewModelScope.launch {
+            val lastSeen = appPreferences.getLastSeenVersionCode()
+            if (BuildConfig.VERSION_CODE > lastSeen) {
+                _showWhatsNew.value = true
+            }
+        }
+    }
+
+    /** Force show the What's New sheet (for testing / menu trigger) */
+    fun showWhatsNewDebug() {
+        _showWhatsNew.value = true
+    }
+
+    fun dismissWhatsNew() {
+        _showWhatsNew.value = false
+        viewModelScope.launch {
+            appPreferences.setLastSeenVersionCode(BuildConfig.VERSION_CODE)
         }
     }
 
@@ -370,6 +403,9 @@ fun DesperseNavGraph(
 
     // Feedback sheet state
     var showFeedbackSheet by remember { mutableStateOf(false) }
+
+    // What's New sheet state (driven by ViewModel)
+    val showWhatsNew by authGateViewModel.showWhatsNew.collectAsState()
 
     // Snackbar state for toasts
     val snackbarHostState = remember { SnackbarHostState() }
@@ -630,6 +666,12 @@ fun DesperseNavGraph(
             }
             composable("settings/help") {
                 HelpScreen(
+                    onBack = { navController.popBackStack() },
+                    onChangelogClick = { navController.navigate("settings/changelog") }
+                )
+            }
+            composable("settings/changelog") {
+                ChangelogScreen(
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -702,8 +744,9 @@ fun DesperseNavGraph(
             isOpen = showMoreMenu,
             onDismiss = { showMoreMenu = false },
             onSettingsClick = { navController.navigate("settings") },
-            onHelpClick = { navController.navigate("settings") }, // Help is in settings
+            onHelpClick = { navController.navigate("settings/help") },
             onFeedbackClick = { showFeedbackSheet = true },
+            onWhatsNewClick = { authGateViewModel.showWhatsNewDebug() },
             onLogoutClick = { authGateViewModel.logout() },
             isAuthenticated = currentUser != null
         )
@@ -721,6 +764,12 @@ fun DesperseNavGraph(
             onSubmit = { rating, message, appVersion, userAgent ->
                 authGateViewModel.createFeedback(rating, message, appVersion, userAgent)
             }
+        )
+
+        // What's New bottom sheet (shown after app update)
+        WhatsNewSheet(
+            isOpen = showWhatsNew,
+            onDismiss = { authGateViewModel.dismissWhatsNew() }
         )
     }
 }

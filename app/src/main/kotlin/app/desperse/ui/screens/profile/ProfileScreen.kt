@@ -51,12 +51,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.painterResource
+import app.desperse.core.util.openInAppBrowser
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.ui.components.ButtonVariant
@@ -104,6 +113,8 @@ fun ProfileScreen(
     val gridState = rememberLazyGridState()
     val snackbarHostState = remember { SnackbarHostState() }
     var isDmChecking by remember { mutableStateOf(false) }
+    var externalLinkUrl by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     // Coroutine scope for showing snackbar messages
     val coroutineScope = rememberCoroutineScope()
@@ -210,6 +221,10 @@ fun ProfileScreen(
                                 onCollectorsClick = { onCollectorsClick?.invoke(profileSlug) },
                                 onActivityClick = if (uiState.isOwnProfile) onActivityClick else null,
                                 onEditProfileClick = if (uiState.isOwnProfile) onEditProfileClick else null,
+                                onExternalLinkClick = { url -> externalLinkUrl = url },
+                                onSocialLinkClick = { url ->
+                                    context.openInAppBrowser(url)
+                                },
                                 onMessageClick = if (!uiState.isOwnProfile && onMessageClick != null) {
                                     {
                                         if (!isDmChecking) {
@@ -317,6 +332,32 @@ fun ProfileScreen(
             onDismiss = { viewModel.dismissWalletPicker() }
         )
     }
+
+    // External link warning dialog
+    if (externalLinkUrl != null) {
+        AlertDialog(
+            onDismissRequest = { externalLinkUrl = null },
+            title = { Text("Open external link?") },
+            text = {
+                Text("You're about to visit an external website:\n\n${externalLinkUrl}")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val url = externalLinkUrl ?: return@TextButton
+                    val fullUrl = if (url.startsWith("http://") || url.startsWith("https://")) url else "https://$url"
+                    context.openInAppBrowser(fullUrl)
+                    externalLinkUrl = null
+                }) {
+                    Text("Open")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { externalLinkUrl = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -336,6 +377,8 @@ private fun ProfileHeader(
     onCollectorsClick: () -> Unit,
     onActivityClick: (() -> Unit)?,
     onEditProfileClick: (() -> Unit)?,
+    onExternalLinkClick: (String) -> Unit = {},
+    onSocialLinkClick: (String) -> Unit = {},
     onMessageClick: (() -> Unit)? = null,
     onTipClick: (() -> Unit)? = null
 ) {
@@ -523,11 +566,29 @@ private fun ProfileHeader(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            Text(
-                text = "@${user.slug}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "@${user.slug}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val joinedDate = remember(user.createdAt) {
+                    user.createdAt?.let {
+                        try {
+                            val parsed = ZonedDateTime.parse(it)
+                            val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH)
+                            "Joined ${parsed.format(formatter)}"
+                        } catch (_: Exception) { null }
+                    }
+                }
+                if (joinedDate != null) {
+                    Text(
+                        text = " · $joinedDate",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             // Bio
             if (!user.bio.isNullOrBlank()) {
@@ -539,24 +600,88 @@ private fun ProfileHeader(
                 )
             }
 
-            // Link
-            if (!user.link.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(DesperseSpacing.xs))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FaIcon(
-                        icon = FaIcons.Link,
-                        size = 14.dp,
-                        tint = MaterialTheme.colorScheme.primary,
-                        style = FaIconStyle.Solid
-                    )
-                    Spacer(modifier = Modifier.width(DesperseSpacing.xs))
-                    Text(
-                        text = user.link.removePrefix("https://").removePrefix("http://").removeSuffix("/"),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+            // Social links row
+            val userLink = user.link?.takeIf { it.isNotBlank() }
+            val userTwitter = user.twitterUsername?.takeIf { it.isNotBlank() }
+            val userInstagram = user.instagramUsername?.takeIf { it.isNotBlank() }
+            if (userLink != null || userTwitter != null || userInstagram != null) {
+                Spacer(modifier = Modifier.height(DesperseSpacing.sm))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
+                ) {
+                    // Website link (with external link warning)
+                    if (userLink != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { onExternalLinkClick(userLink) }
+                        ) {
+                            FaIcon(
+                                icon = FaIcons.Link,
+                                size = 14.dp,
+                                tint = MaterialTheme.colorScheme.primary,
+                                style = FaIconStyle.Solid
+                            )
+                            Spacer(modifier = Modifier.width(DesperseSpacing.xs))
+                            Text(
+                                text = userLink.removePrefix("https://").removePrefix("http://").removePrefix("www.").removeSuffix("/"),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // X (Twitter) link
+                    if (userTwitter != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                onSocialLinkClick("https://x.com/${user.twitterUsername}")
+                            }
+                        ) {
+                            FaIcon(
+                                icon = FaIcons.X,
+                                size = 14.dp,
+                                tint = MaterialTheme.colorScheme.primary,
+                                style = FaIconStyle.Brands
+                            )
+                            Spacer(modifier = Modifier.width(DesperseSpacing.xs))
+                            Text(
+                                text = "@${user.twitterUsername}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    // Instagram link
+                    if (userInstagram != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                onSocialLinkClick("https://instagram.com/${user.instagramUsername}")
+                            }
+                        ) {
+                            FaIcon(
+                                icon = FaIcons.Instagram,
+                                size = 14.dp,
+                                tint = MaterialTheme.colorScheme.primary,
+                                style = FaIconStyle.Brands
+                            )
+                            Spacer(modifier = Modifier.width(DesperseSpacing.xs))
+                            Text(
+                                text = "@${user.instagramUsername}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
 

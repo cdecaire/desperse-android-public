@@ -234,6 +234,7 @@ object FaIcons {
     // Brands (use FaIconStyle.Brands)
     const val Twitter = "\uf099"
     const val X = "\ue61b"
+    const val Instagram = "\uf16d"
     const val Discord = "\uf392"
     const val Telegram = "\uf2c6"
     const val Github = "\uf09b"

@@ -667,6 +667,8 @@ class ProfileViewModel @Inject constructor(
                                     avatarUrl = user.avatarUrl,
                                     headerBgUrl = user.headerUrl,
                                     link = user.website,
+                                    twitterUsername = user.twitterUsername,
+                                    instagramUsername = user.instagramUsername,
                                     slug = user.slug ?: profileUser.slug
                                 )
                             )

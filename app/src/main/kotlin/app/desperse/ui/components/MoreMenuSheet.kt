@@ -38,6 +38,7 @@ fun MoreMenuSheet(
     onSettingsClick: () -> Unit,
     onHelpClick: () -> Unit,
     onFeedbackClick: () -> Unit,
+    onWhatsNewClick: () -> Unit,
     onLogoutClick: () -> Unit,
     isAuthenticated: Boolean = true
 ) {
@@ -105,6 +106,17 @@ fun MoreMenuSheet(
                         onClick = {
                             onDismiss()
                             onFeedbackClick()
+                        }
+                    )
+
+                    // What's New
+                    MoreMenuItem(
+                        icon = FaIcons.FileLines,
+                        label = "What's new",
+                        subtitle = "v${app.desperse.BuildConfig.VERSION_NAME}",
+                        onClick = {
+                            onDismiss()
+                            onWhatsNewClick()
                         }
                     )
 

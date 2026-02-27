@@ -26,8 +26,8 @@ android {
         applicationId = "app.desperse.android"
         minSdk = 28  // Required by Privy SDK
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -123,6 +123,7 @@ dependencies {
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)
     implementation(libs.appcompat)
+    implementation(libs.browser)
 
     // Lifecycle
     implementation(libs.lifecycle.runtime.ktx)
@@ -181,6 +182,7 @@ dependencies {
 
     // Firebase
     implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
     implementation(libs.firebase.messaging)
 
     // Testing
