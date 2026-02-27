@@ -15,6 +15,7 @@ import app.desperse.core.wallet.MwaAuthResult
 import app.desperse.core.wallet.MwaError
 import app.desperse.core.wallet.MwaManager
 import app.desperse.core.wallet.WalletPreferences
+import app.desperse.core.wallet.WalletRegistry
 import app.desperse.core.wallet.userFacingMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -49,7 +50,6 @@ class LoginViewModel @Inject constructor(
 ) : ViewModel() {
     companion object {
         private const val TAG = "LoginViewModel"
-        private const val SOLFLARE_PACKAGE = "com.solflare.mobile"
     }
 
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Idle)
@@ -62,14 +62,19 @@ class LoginViewModel @Inject constructor(
 
     private var currentEmail: String = ""
 
-    /** Whether any MWA-compatible wallet app (Phantom, Solflare, etc.) is installed. */
-    val isMwaAvailable: Boolean get() = mwaManager.isAvailable()
+    /** Whether any compatible wallet app (MWA or deeplink) is installed. */
+    val isWalletAvailable: Boolean get() = installedWallets.isNotEmpty()
 
     /** Whether this is a Solana Mobile device (Saga/Seeker) with Seed Vault installed. */
     val isSeekerDevice: Boolean get() = mwaManager.isSeekerDevice()
 
-    /** List of installed MWA wallet apps (excludes system services like Seed Vault). */
-    val installedWallets: List<InstalledMwaWallet> get() = mwaManager.getInstalledWallets()
+    /** List of installed wallet apps — MWA wallets plus deeplink-only wallets (e.g. Backpack). */
+    val installedWallets: List<InstalledMwaWallet> get() {
+        val mwaWallets = mwaManager.getInstalledWallets()
+        val mwaPackages = mwaWallets.map { it.packageName }.toSet()
+        val deeplinkOnly = deeplinkWalletManager.getInstalledDeeplinkOnlyWallets(mwaPackages)
+        return mwaWallets + deeplinkOnly
+    }
 
     init {
         // Watch for auth state changes - navigate when authenticated
@@ -458,12 +463,12 @@ class LoginViewModel @Inject constructor(
 
     /** Whether a wallet package should use deeplinks instead of MWA. */
     fun shouldUseDeeplink(packageName: String): Boolean {
-        return deeplinkWalletManager.shouldUseDeeplink(packageName)
+        return WalletRegistry.shouldUseDeeplink(packageName)
     }
 
-    /** Solflare experiment: attempt MWA first, fallback to deeplink on transport/runtime failures. */
+    /** Whether to attempt MWA first with deeplink fallback (e.g. Solflare). */
     fun shouldTryMwaFirst(packageName: String): Boolean {
-        return packageName == SOLFLARE_PACKAGE
+        return WalletRegistry.shouldTryMwaFirst(packageName)
     }
 
     private fun shouldFallbackFromMwaToDeeplink(error: Throwable): Boolean {

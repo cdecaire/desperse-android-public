@@ -57,59 +57,6 @@ class MwaManager @Inject constructor(
 
         /** Extended timeout for Seeker Wallet (TEE biometric confirmation is slower) */
         private const val SEEKER_ASSOCIATION_TIMEOUT_MS = 60_000L
-
-        /** Known MWA wallet URI hosts to friendly display names */
-        private val WALLET_NAME_MAP = mapOf(
-            "phantom.app" to "Phantom",
-            "solflare.com" to "Solflare",
-            "solflare.dev" to "Solflare",
-            "ultimate.app" to "Ultimate",
-            "glow.app" to "Glow",
-            "tiplink.io" to "TipLink",
-            "jup.ag" to "Jupiter",
-        )
-
-        /** Known MWA wallet package names to friendly display names (fallback when walletUriBase is null) */
-        private val WALLET_PACKAGE_MAP = mapOf(
-            "app.phantom" to "Phantom",
-            "com.solflare.mobile" to "Solflare",
-            SEEKER_WALLET_PACKAGE to "Seeker Wallet",
-            "com.ultimate.app" to "Ultimate",
-            "com.glow.app" to "Glow",
-            "ag.jup.mobile" to "Jupiter",
-            "ag.jup.jupiter.android" to "Jupiter",
-        )
-
-        /** Packages that should be excluded from MWA intent resolution.
-         *  Seed Vault: TEE system service, not a user-facing wallet.
-         *  Backpack: MWA broken (ECONNREFUSED) and deeplinks non-functional on both variants. */
-        private val EXCLUDED_PACKAGES = setOf(
-            SEED_VAULT_PACKAGE,                  // com.solanamobile.seedvaultimpl — TEE service
-            "app.backpack.mobile",               // Play Store Backpack — broken MWA
-            "app.backpack.mobile.standalone",    // Seeker pre-install — broken MWA + deeplinks
-        )
-
-        /** Known MWA wallet URI hosts to lowercase Privy walletClientType identifiers */
-        private val WALLET_CLIENT_TYPE_MAP = mapOf(
-            "phantom.app" to "phantom",
-            "solflare.com" to "solflare",
-            "solflare.dev" to "solflare",
-            "ultimate.app" to "ultimate",
-            "glow.app" to "glow",
-            "tiplink.io" to "tiplink",
-            "jup.ag" to "jupiter",
-        )
-
-        /** Known MWA wallet package names to lowercase Privy walletClientType identifiers */
-        private val WALLET_PACKAGE_CLIENT_TYPE_MAP = mapOf(
-            "app.phantom" to "phantom",
-            "com.solflare.mobile" to "solflare",
-            SEEKER_WALLET_PACKAGE to "seeker",
-            "com.ultimate.app" to "ultimate",
-            "com.glow.app" to "glow",
-            "ag.jup.mobile" to "jupiter",
-            "ag.jup.jupiter.android" to "jupiter",
-        )
     }
 
     // Cached wallet availability to avoid repeated PackageManager queries
@@ -209,10 +156,11 @@ class MwaManager @Inject constructor(
             val resolveInfos = queryMwaWallets()
             val result = resolveInfos.mapNotNull { resolveInfo ->
                 val pkg = resolveInfo.activityInfo?.packageName ?: return@mapNotNull null
-                val displayName = WALLET_PACKAGE_MAP[pkg]
+                val displayName = WalletRegistry.displayNameForPackage(pkg)
+                    .takeIf { it != pkg }
                     ?: resolveInfo.loadLabel(appContext.packageManager)?.toString()
                     ?: pkg
-                val clientType = WALLET_PACKAGE_CLIENT_TYPE_MAP[pkg] ?: "unknown"
+                val clientType = WalletRegistry.clientTypeForPackage(pkg)
                 InstalledMwaWallet(
                     packageName = pkg,
                     displayName = displayName,
@@ -240,7 +188,7 @@ class MwaManager @Inject constructor(
         )
         return resolveInfos.filter { info ->
             val pkg = info.activityInfo?.packageName
-            pkg != null && pkg !in EXCLUDED_PACKAGES
+            pkg != null && pkg !in WalletRegistry.excludedMwaPackages
         }
     }
 
@@ -580,8 +528,8 @@ class MwaManager @Inject constructor(
                         )
                         val validPackages = resolveInfos
                             .mapNotNull { it.activityInfo?.packageName }
-                            .filter { it !in EXCLUDED_PACKAGES }
-                        val knownPackages = validPackages.filter { it in WALLET_PACKAGE_MAP }
+                            .filter { it !in WalletRegistry.excludedMwaPackages }
+                        val knownPackages = validPackages.filter { WalletRegistry.getByPackage(it) != null }
                         Log.d(TAG, "MWA intent resolves to ${resolveInfos.size} app(s), " +
                             "${knownPackages.size} known: $knownPackages " +
                             "(excluded: ${resolveInfos.size - validPackages.size})")
@@ -737,8 +685,10 @@ class MwaManager @Inject constructor(
         // Primary: walletUriBase from MWA authorize response
         val host = walletUriBase?.host
         if (host != null) {
-            val baseName = WALLET_NAME_MAP[host] ?: host.removeSuffix(".com").removeSuffix(".app")
-                .replaceFirstChar { it.uppercase() }
+            val baseName = WalletRegistry.displayNameForMwaHost(host)
+                .takeIf { it != host }
+                ?: host.removeSuffix(".com").removeSuffix(".app")
+                    .replaceFirstChar { it.uppercase() }
             val name = ensureWalletSuffix(baseName)
             Log.d(TAG, "resolveWalletName: from walletUriBase host=$host -> $name")
             return name
@@ -747,9 +697,9 @@ class MwaManager @Inject constructor(
         // Fallback: resolved intent package
         val pkg = lastResolvedWalletPackage
         if (pkg != null) {
-            val baseName = WALLET_PACKAGE_MAP[pkg]
-            if (baseName != null) {
-                val name = ensureWalletSuffix(baseName)
+            val entry = WalletRegistry.getByPackage(pkg)
+            if (entry != null) {
+                val name = ensureWalletSuffix(entry.displayName)
                 Log.d(TAG, "resolveWalletName: from package=$pkg -> $name")
                 return name
             }
@@ -766,11 +716,13 @@ class MwaManager @Inject constructor(
     private fun resolveWalletClientType(walletUriBase: Uri?): String {
         val host = walletUriBase?.host
         if (host != null) {
-            WALLET_CLIENT_TYPE_MAP[host]?.let { return it }
+            val clientType = WalletRegistry.clientTypeForMwaHost(host)
+            if (clientType != "unknown") return clientType
         }
         val pkg = lastResolvedWalletPackage
         if (pkg != null) {
-            WALLET_PACKAGE_CLIENT_TYPE_MAP[pkg]?.let { return it }
+            val clientType = WalletRegistry.clientTypeForPackage(pkg)
+            if (clientType != "unknown") return clientType
         }
         return "unknown"
     }

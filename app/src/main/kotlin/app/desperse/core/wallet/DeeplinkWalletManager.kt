@@ -3,10 +3,13 @@ package app.desperse.core.wallet
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
 import app.desperse.core.util.Base58
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.SodiumAndroid
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,23 +44,6 @@ class DeeplinkWalletManager @Inject constructor(
         private const val REDIRECT_URL = "desperse://wallet-callback"
         private const val CLUSTER = "mainnet-beta"
 
-        /** Base URLs for wallet deeplink protocols */
-        val WALLET_DEEPLINK_URLS = mapOf(
-            "com.solflare.mobile" to "https://solflare.com/ul/v1",
-            "app.phantom" to "https://phantom.app/ul/v1",
-            "app.backpack.mobile" to "https://backpack.app/ul/v1",
-            "app.backpack.mobile.standalone" to "https://backpack.app/ul/v1",
-        )
-
-        /** Wallets that should use deeplinks instead of MWA.
-         *  Backpack: MWA broken (ECONNREFUSED — never starts WebSocket server).
-         *  Solflare: Deeplink preferred per original config. */
-        val DEEPLINK_PREFERRED_PACKAGES = setOf(
-            "com.solflare.mobile",
-            "app.backpack.mobile",
-            "app.backpack.mobile.standalone",
-        )
-
         private const val PREFS_NAME = "deeplink_wallet_session"
         private const val KEY_PUBLIC_KEY = "publicKey"
         private const val KEY_SECRET_KEY = "secretKey"
@@ -76,8 +62,24 @@ class DeeplinkWalletManager @Inject constructor(
     private val sodium = SodiumAndroid()
     private val lazySodium = LazySodiumAndroid(sodium)
     private val json = Json { ignoreUnknownKeys = true }
-    private val prefs: SharedPreferences =
-        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences by lazy {
+        try {
+            val masterKey = MasterKey.Builder(appContext)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+
+            EncryptedSharedPreferences.create(
+                appContext,
+                PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to create encrypted prefs for deeplink session, using fallback", e)
+            appContext.getSharedPreferences("${PREFS_NAME}_fallback", Context.MODE_PRIVATE)
+        }
+    }
 
     // Session state — persisted to SharedPreferences so it survives process death
     private var sessionKeypair: NaClKeyPair? = null
@@ -135,7 +137,46 @@ class DeeplinkWalletManager @Inject constructor(
      * Whether a specific wallet should use deeplinks instead of MWA.
      */
     fun shouldUseDeeplink(packageName: String): Boolean {
-        return packageName in DEEPLINK_PREFERRED_PACKAGES
+        return WalletRegistry.shouldUseDeeplink(packageName)
+    }
+
+    /**
+     * Returns deeplink-only wallets installed on the device that are NOT already
+     * discovered via MWA. Avoids duplicates for wallets like Solflare that support
+     * both protocols. Deduplicates Backpack variants (prefers Play Store over Seeker pre-install).
+     *
+     * @param excludePackages Packages already found via MWA discovery.
+     */
+    fun getInstalledDeeplinkOnlyWallets(excludePackages: Set<String>): List<InstalledMwaWallet> {
+        val candidates = WalletRegistry.deeplinkOnlyPackages - excludePackages
+
+        val result = candidates.mapNotNull { pkg ->
+            if (isPackageInstalled(pkg)) {
+                InstalledMwaWallet(
+                    packageName = pkg,
+                    displayName = WalletRegistry.displayNameForPackage(pkg),
+                    walletClientType = WalletRegistry.clientTypeForPackage(pkg)
+                )
+            } else null
+        }.toMutableList()
+
+        // Deduplicate Backpack variants: prefer Play Store over Seeker pre-install
+        val backpackPackages = setOf("app.backpack.mobile", "app.backpack.mobile.standalone")
+        val installedBackpacks = result.filter { it.packageName in backpackPackages }
+        if (installedBackpacks.size > 1) {
+            result.removeAll { it.packageName == "app.backpack.mobile.standalone" }
+        }
+
+        return result
+    }
+
+    private fun isPackageInstalled(packageName: String): Boolean {
+        return try {
+            appContext.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
     }
 
     /**
@@ -148,7 +189,7 @@ class DeeplinkWalletManager @Inject constructor(
      * @return Intent to launch, or null if wallet doesn't support deeplinks.
      */
     fun startConnect(walletPackage: String): Intent? {
-        val baseUrl = WALLET_DEEPLINK_URLS[walletPackage]
+        val baseUrl = WalletRegistry.deeplinkUrlForPackage(walletPackage)
         if (baseUrl == null) {
             Log.w(TAG, "No deeplink URL for package: $walletPackage")
             return null
@@ -379,13 +420,8 @@ class DeeplinkWalletManager @Inject constructor(
      * Get the wallet client type identifier for the currently connected wallet.
      */
     fun getConnectedWalletClientType(): String {
-        return when (currentWalletPackage) {
-            "app.phantom" -> "phantom"
-            "com.solflare.mobile" -> "solflare"
-            "com.solanamobile.wallet" -> "seeker"
-            "app.backpack.mobile", "app.backpack.mobile.standalone" -> "backpack"
-            else -> "unknown"
-        }
+        val pkg = currentWalletPackage ?: return "unknown"
+        return WalletRegistry.clientTypeForPackage(pkg)
     }
 
     /**

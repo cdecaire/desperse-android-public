@@ -27,6 +27,9 @@
         <intent>
             <action android:name="androidx.browser.customtabs.action.CustomTabsService" />
         </intent>
+        <!-- Deeplink-only wallets: package visibility for installed check -->
+        <package android:name="app.backpack.mobile" />
+        <package android:name="app.backpack.mobile.standalone" />
     </queries>
 
     <application

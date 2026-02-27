@@ -100,16 +100,7 @@ class WalletPreferences @Inject constructor(
     }
 
     private fun labelFromPackage(packageName: String): String? {
-        return when (packageName) {
-            "app.phantom" -> "Phantom"
-            "com.solflare.mobile" -> "Solflare"
-            "app.backpack.mobile", "app.backpack.mobile.standalone" -> "Backpack"
-            "com.ultimate.app" -> "Ultimate"
-            "com.glow.app" -> "Glow"
-            "com.solanamobile.wallet" -> "Seeker Wallet"
-            "ag.jup.mobile", "ag.jup.jupiter.android" -> "Jupiter"
-            else -> null
-        }
+        return WalletRegistry.getByPackage(packageName)?.displayName
     }
 
     /**
@@ -127,17 +118,7 @@ class WalletPreferences @Inject constructor(
     }
 
     private fun inferPackageFromLabel(label: String): String? {
-        val normalized = label.lowercase().removeSuffix(" wallet").trim()
-        return when (normalized) {
-            "phantom" -> "app.phantom"
-            "solflare" -> "com.solflare.mobile"
-            "backpack" -> "app.backpack.mobile"
-            "ultimate" -> "com.ultimate.app"
-            "glow" -> "com.glow.app"
-            "seeker" -> "com.solanamobile.wallet"
-            "jupiter" -> "ag.jup.mobile"
-            else -> null
-        }
+        return WalletRegistry.inferPackageFromLabel(label)
     }
 
     /**

@@ -170,8 +170,10 @@ class WalletsSettingsViewModel @Inject constructor(
 
     private fun checkMwaAvailability() {
         // Show link button if any MWA or deeplink-compatible wallet is installed
-        val hasMwa = mwaManager.isAvailable()
-        _uiState.update { it.copy(isMwaAvailable = hasMwa) }
+        val mwaWallets = mwaManager.getInstalledWallets()
+        val mwaPackages = mwaWallets.map { it.packageName }.toSet()
+        val deeplinkOnly = deeplinkWalletManager.getInstalledDeeplinkOnlyWallets(mwaPackages)
+        _uiState.update { it.copy(isMwaAvailable = mwaWallets.isNotEmpty() || deeplinkOnly.isNotEmpty()) }
     }
 
     private fun loadLinkedAccounts() {
@@ -242,24 +244,10 @@ class WalletsSettingsViewModel @Inject constructor(
         // Gather MWA wallets
         val mwaWallets = mwaManager.getInstalledWallets()
 
-        // Gather deeplink-preferred wallets (Solflare uses deeplinks, not MWA)
-        val deeplinkWallets = DeeplinkWalletManager.WALLET_DEEPLINK_URLS.keys
-            .filter { pkg -> deeplinkWalletManager.shouldUseDeeplink(pkg) }
-            .filter { pkg -> mwaWallets.none { it.packageName == pkg } }
-            .mapNotNull { pkg ->
-                val name = when (pkg) {
-                    "com.solflare.mobile" -> "Solflare"
-                    else -> return@mapNotNull null
-                }
-                InstalledWallet(
-                    packageName = pkg,
-                    displayName = name,
-                    walletClientType = when (pkg) {
-                        "com.solflare.mobile" -> "solflare"
-                        else -> "unknown"
-                    }
-                )
-            }
+        // Gather deeplink-only wallets not already found via MWA
+        val mwaPackages = mwaWallets.map { it.packageName }.toSet()
+        val deeplinkWallets = deeplinkWalletManager.getInstalledDeeplinkOnlyWallets(mwaPackages)
+            .map { InstalledWallet(it.packageName, it.displayName, it.walletClientType) }
 
         val allWallets = mwaWallets.map {
             InstalledWallet(it.packageName, it.displayName, it.walletClientType)

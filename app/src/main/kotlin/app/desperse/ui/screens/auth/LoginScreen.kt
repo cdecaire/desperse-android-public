@@ -47,7 +47,7 @@ fun LoginScreen(
     var showWalletPicker by remember { mutableStateOf(false) }
 
     val isSeekerDevice = viewModel.isSeekerDevice
-    val isMwaAvailable = viewModel.isMwaAvailable
+    val isWalletAvailable = viewModel.isWalletAvailable
     val installedWallets = remember { viewModel.installedWallets }
 
     // Handle events
@@ -317,8 +317,8 @@ fun LoginScreen(
                 Text("Continue with X")
             }
 
-            // Non-Seeker device with MWA wallet available: show wallet button at bottom
-            if (!isSeekerDevice && isMwaAvailable) {
+            // Non-Seeker device with wallet available: show wallet button at bottom
+            if (!isSeekerDevice && isWalletAvailable) {
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Divider with "or"
