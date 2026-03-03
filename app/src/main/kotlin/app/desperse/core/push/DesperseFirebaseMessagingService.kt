@@ -30,6 +30,7 @@ class DesperseFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         private const val TAG = "DesperseFirebaseMsgSvc"
         const val CHANNEL_ID = "desperse_notifications"
+        const val EXTRA_FROM_NOTIFICATION = "from_notification"
         private var notificationId = 0
     }
 
@@ -45,18 +46,27 @@ class DesperseFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        Log.d(TAG, "FCM message received: ${message.data}")
+        Log.d(TAG, "FCM message received: data=${message.data}, notification=${message.notification?.title}")
 
         val data = message.data
-        val title = data["title"] ?: return
-        val body = data["body"] ?: ""
-        val deepLink = data["deepLink"]
+        val notification = message.notification
+
+        // Support both data-only (backend) and notification (Firebase campaigns) payloads
+        val title = data["title"] ?: notification?.title ?: return
+        val body = data["body"] ?: notification?.body ?: ""
+        val deepLink = data["deepLink"] ?: notification?.link?.toString()
         val type = data["type"] ?: "notification"
 
-        showNotification(title, body, deepLink, type)
+        showNotification(title, body, deepLink, type, message)
     }
 
-    private fun showNotification(title: String, body: String, deepLink: String?, type: String) {
+    private fun showNotification(
+        title: String,
+        body: String,
+        deepLink: String?,
+        type: String,
+        originalMessage: RemoteMessage? = null
+    ) {
         ensureNotificationChannel()
 
         val intent = if (deepLink != null) {
@@ -65,6 +75,19 @@ class DesperseFirebaseMessagingService : FirebaseMessagingService() {
             Intent(this, MainActivity::class.java)
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        intent.putExtra(EXTRA_FROM_NOTIFICATION, true)
+
+        // Copy FCM analytics extras so Firebase can auto-track notification opens.
+        // Campaign notifications include google.c.a.* keys that Firebase Analytics reads.
+        originalMessage?.toIntent()?.extras?.let { fcmExtras ->
+            for (key in fcmExtras.keySet()) {
+                if (key.startsWith("google.") || key.startsWith("gcm.") ||
+                    key == "from" || key == "collapse_key"
+                ) {
+                    fcmExtras.getString(key)?.let { intent.putExtra(key, it) }
+                }
+            }
+        }
 
         val pendingIntent = PendingIntent.getActivity(
             this,

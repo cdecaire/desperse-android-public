@@ -32,5 +32,14 @@
 -keep class com.goterl.lazysodium.** { *; }
 -dontwarn com.goterl.lazysodium.**
 
+# === FIREBASE ANALYTICS & MEASUREMENT ===
+# Firebase ships consumer rules but proguard-android-optimize.txt can strip
+# reflection-based measurement classes needed for event collection.
+-keep class com.google.android.gms.measurement.** { *; }
+-keep class com.google.android.gms.measurement.internal.** { *; }
+-keep class com.google.firebase.analytics.** { *; }
+-keep class com.google.firebase.iid.** { *; }
+-dontwarn com.google.android.gms.measurement.**
+
 # === COIL (ships NO consumer rules) ===
 -dontwarn coil.**

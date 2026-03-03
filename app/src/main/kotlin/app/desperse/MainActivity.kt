@@ -16,9 +16,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.rememberNavController
+import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
 import app.desperse.core.preferences.ThemeMode
 import app.desperse.core.preferences.ThemePreferences
+import app.desperse.core.push.DesperseFirebaseMessagingService
 import app.desperse.core.wallet.DeeplinkWalletManager
 import app.desperse.core.wallet.MwaManager
 import app.desperse.ui.navigation.AuthGateViewModel
@@ -42,6 +44,8 @@ class MainActivity : ComponentActivity() {
 
     /** Activity-scoped ViewModel - survives recomposition and prevents duplicate instances */
     private val authGateViewModel: AuthGateViewModel by viewModels()
+
+    private val firebaseAnalytics by lazy { FirebaseAnalytics.getInstance(this) }
 
     /** Incremented on each new intent to re-trigger deep link handling */
     private var deepLinkTrigger = mutableIntStateOf(0)
@@ -68,6 +72,9 @@ class MainActivity : ComponentActivity() {
 
         // Wire the ActivityResultLauncher to MwaManager for proper MWA intent launching
         mwaManager.setActivityResultLauncher(mwaLauncher)
+
+        // Track notification open if launched from a notification tap
+        trackNotificationOpenIfNeeded(intent)
 
         // Check if this activity was launched with a wallet callback intent
         // (happens when activity is recreated instead of receiving onNewIntent)
@@ -115,6 +122,9 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
 
+        // Track notification open if activity resumed from a notification tap
+        trackNotificationOpenIfNeeded(intent)
+
         // Check if this is a wallet deeplink callback
         val uri = intent.data
         if (uri != null && uri.scheme == "desperse" && uri.host == "wallet-callback") {
@@ -131,6 +141,35 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         // Clear the launcher reference so MwaManager doesn't hold a stale launcher
         mwaManager.setActivityResultLauncher(null)
+    }
+
+    /**
+     * Log notification_open event when the activity is opened from a notification tap.
+     * Covers both our custom-built notifications (from_notification extra) and
+     * FCM SDK auto-displayed campaign notifications (google.c.a.* extras).
+     */
+    private fun trackNotificationOpenIfNeeded(intent: Intent?) {
+        if (intent == null) return
+        val extras = intent.extras ?: return
+
+        val fromCustomNotification = extras.getBoolean(
+            DesperseFirebaseMessagingService.EXTRA_FROM_NOTIFICATION, false
+        )
+        val fromCampaign = extras.keySet().any { it.startsWith("google.c.a.") }
+
+        if (fromCustomNotification || fromCampaign) {
+            Log.d("MainActivity", "Opened from notification, logging analytics event")
+            val params = Bundle().apply {
+                // Include campaign ID if present (for Firebase campaign attribution)
+                extras.getString("google.c.a.c_id")?.let {
+                    putString(FirebaseAnalytics.Param.CAMPAIGN, it)
+                }
+                extras.getString("google.c.a.c_l")?.let {
+                    putString("message_label", it)
+                }
+            }
+            firebaseAnalytics.logEvent("notification_open", params)
+        }
     }
 
     private fun handleDeepLink(intent: Intent?, navController: androidx.navigation.NavController) {
