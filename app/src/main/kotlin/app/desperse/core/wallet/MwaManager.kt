@@ -166,7 +166,15 @@ class MwaManager @Inject constructor(
                     displayName = displayName,
                     walletClientType = clientType
                 )
+            }.toMutableList()
+
+            // Deduplicate Backpack variants: prefer Play Store over Seeker pre-install
+            val backpackPackages = setOf("app.backpack.mobile", "app.backpack.mobile.standalone")
+            val installedBackpacks = result.filter { it.packageName in backpackPackages }
+            if (installedBackpacks.size > 1) {
+                result.removeAll { it.packageName == "app.backpack.mobile.standalone" }
             }
+
             cachedWallets = result
             cachedAvailability = result.isNotEmpty()
             lastWalletQueryTime = now

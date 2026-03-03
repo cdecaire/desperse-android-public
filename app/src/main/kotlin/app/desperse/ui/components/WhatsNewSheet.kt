@@ -44,6 +44,7 @@ val changelogs = mapOf(
     6 to WhatsNewContent(
         version = "1.0.5",
         items = listOf(
+            "Added support for Backpack wallet",
             "Add social links to profiles (X and Instagram)",
             "In-app browser for external links",
             "New help & changelog screens",
