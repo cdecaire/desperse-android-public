@@ -2,6 +2,7 @@ package app.desperse.ui.screens.create
 
 import android.net.Uri
 import android.util.Log
+import app.desperse.BuildConfig
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.desperse.core.arweave.ArweaveUtils
@@ -545,7 +546,8 @@ class CreatePostViewModel @Inject constructor(
                     protectDownload = state.protectDownload,
                     mediaMimeType = firstItem.mimeType.ifBlank { null },
                     mediaFileSize = firstItem.fileSize.takeIf { it > 0 },
-                    storageType = if (state.postType == "edition" && state.storageType == "arweave") "arweave" else null
+                    storageType = if (state.postType == "edition" && state.storageType == "arweave") "arweave" else null,
+                    isDev = if (BuildConfig.DEBUG) true else null
                 )
 
                 val result = postRepository.createPost(request)

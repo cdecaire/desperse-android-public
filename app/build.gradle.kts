@@ -47,6 +47,9 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"${localProperties.getProperty("API_BASE_URL", "https://desperse.com")}\"")
         buildConfigField("String", "SENTRY_DSN", "\"${localProperties.getProperty("SENTRY_DSN", "")}\"")
         buildConfigField("String", "HELIUS_API_KEY", "\"${localProperties.getProperty("HELIUS_API_KEY", "")}\"")
+        // Local dev server URL for debug builds (emulator 10.0.2.2 = host localhost)
+        buildConfigField("String", "DEV_API_BASE_URL", "\"${localProperties.getProperty("DEV_API_BASE_URL", "")}\"")
+
     }
 
     signingConfigs {

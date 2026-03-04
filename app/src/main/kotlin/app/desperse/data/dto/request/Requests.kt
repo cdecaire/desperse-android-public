@@ -55,7 +55,8 @@ data class CreatePostRequest(
     val protectDownload: Boolean = false,
     val mediaMimeType: String? = null,
     val mediaFileSize: Long? = null,
-    val storageType: String? = null // "centralized" or "arweave"
+    val storageType: String? = null, // "centralized" or "arweave"
+    val isDev: Boolean? = null
 )
 
 @Serializable

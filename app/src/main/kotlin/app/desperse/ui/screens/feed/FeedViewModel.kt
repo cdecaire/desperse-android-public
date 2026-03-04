@@ -396,22 +396,22 @@ class FeedViewModel @Inject constructor(
                                 updateCollectState(postId, CollectState.Confirming(collectionId))
                                 startCollectionPolling(postId, collectionId)
                             } else {
-                                updateCollectState(postId, CollectState.Failed(
-                                    result.message ?: "Failed to collect"
-                                ))
+                                val message = result.message ?: "Failed to collect"
+                                updateCollectState(postId, CollectState.Failed(message))
+                                toastManager.showError(message)
                             }
                         }
                         else -> {
-                            updateCollectState(postId, CollectState.Failed(
-                                result.message ?: result.error ?: "Failed to collect"
-                            ))
+                            val message = result.message ?: result.error ?: "Failed to collect"
+                            updateCollectState(postId, CollectState.Failed(message))
+                            toastManager.showError(message)
                         }
                     }
                 }
                 .onFailure { error ->
-                    updateCollectState(postId, CollectState.Failed(
-                        error.message ?: "Failed to collect"
-                    ))
+                    val message = error.message ?: "Failed to collect"
+                    updateCollectState(postId, CollectState.Failed(message))
+                    toastManager.showError(message)
                 }
         }
     }
@@ -576,20 +576,21 @@ class FeedViewModel @Inject constructor(
                                         else -> error.message ?: "Failed to broadcast transaction"
                                     }
                                     updatePurchaseState(postId, PurchaseState.Failed(errorMessage, canRetry = true))
+                                    toastManager.showError(errorMessage)
                                 }
                         }
                         .onFailure { error ->
                             Log.e(TAG, "Signing failed: ${error.message}")
-                            updatePurchaseState(postId, PurchaseState.Failed(
-                                error.message ?: "Failed to sign transaction"
-                            ))
+                            val message = error.message ?: "Failed to sign transaction"
+                            updatePurchaseState(postId, PurchaseState.Failed(message))
+                            toastManager.showError(message)
                         }
                 }
                 .onFailure { error ->
                     Log.e(TAG, "Buy request failed: ${error.message}")
-                    updatePurchaseState(postId, PurchaseState.Failed(
-                        error.message ?: "Failed to initiate purchase"
-                    ))
+                    val message = error.message ?: "Failed to initiate purchase"
+                    updatePurchaseState(postId, PurchaseState.Failed(message))
+                    toastManager.showError(message)
                 }
         }
     }

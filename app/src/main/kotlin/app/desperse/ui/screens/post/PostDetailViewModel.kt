@@ -418,18 +418,20 @@ class PostDetailViewModel @Inject constructor(
                             startPolling(result.collectionId)
                         }
                         else -> {
+                            val message = result.error ?: result.message ?: "Collection failed"
                             _uiState.value = _uiState.value.copy(
-                                collectState = CollectState.Failed(
-                                    result.error ?: result.message ?: "Collection failed"
-                                )
+                                collectState = CollectState.Failed(message)
                             )
+                            toastManager.showError(message)
                         }
                     }
                 }
                 .onFailure { error ->
+                    val message = error.message ?: "Collection failed"
                     _uiState.value = _uiState.value.copy(
-                        collectState = CollectState.Failed(error.message ?: "Collection failed")
+                        collectState = CollectState.Failed(message)
                     )
+                    toastManager.showError(message)
                 }
         }
     }
@@ -519,12 +521,11 @@ class PostDetailViewModel @Inject constructor(
 
         // Check wallet availability before starting
         if (!transactionWalletManager.isActiveWalletAvailable()) {
+            val message = "No compatible wallet app found. Please install a Solana wallet."
             _uiState.value = _uiState.value.copy(
-                purchaseState = PurchaseState.Failed(
-                    "No compatible wallet app found. Please install a Solana wallet.",
-                    canRetry = false
-                )
+                purchaseState = PurchaseState.Failed(message, canRetry = false)
             )
+            toastManager.showError(message)
             return
         }
 
@@ -592,15 +593,16 @@ class PostDetailViewModel @Inject constructor(
                                     canRetry = error !is MwaError.NoWalletInstalled
                                 )
                             )
+                            toastManager.showError(errorMessage)
                         }
                 }
                 .onFailure { error ->
                     Log.e(TAG, "Buy request failed: ${error.message}")
+                    val message = error.message ?: "Failed to initiate purchase"
                     _uiState.value = _uiState.value.copy(
-                        purchaseState = PurchaseState.Failed(
-                            error.message ?: "Failed to initiate purchase"
-                        )
+                        purchaseState = PurchaseState.Failed(message)
                     )
+                    toastManager.showError(message)
                 }
         }
     }

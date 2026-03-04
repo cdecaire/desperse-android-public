@@ -56,8 +56,13 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        val baseUrl = if (BuildConfig.DEBUG && BuildConfig.DEV_API_BASE_URL.isNotEmpty()) {
+            BuildConfig.DEV_API_BASE_URL
+        } else {
+            BuildConfig.API_BASE_URL
+        }
         return Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/")
+            .baseUrl(baseUrl.trimEnd('/') + "/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
