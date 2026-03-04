@@ -5,9 +5,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -25,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneCollectible
 
@@ -45,9 +50,9 @@ fun NftMetadataCard(
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = collectibleColor,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
         cursorColor = collectibleColor,
-        disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
         disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 
@@ -62,7 +67,7 @@ fun NftMetadataCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                "Additional Details",
+                "Additional details",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -74,60 +79,102 @@ fun NftMetadataCard(
         }
 
         AnimatedVisibility(visible = isExpanded) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
-            ) {
-                // Symbol
-                OutlinedTextField(
-                    value = nftSymbol,
-                    onValueChange = onSymbolChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Symbol") },
-                    placeholder = { Text("DSPRS") },
-                    singleLine = true,
-                    enabled = nftFieldsEditable,
-                    colors = textFieldColors,
-                    supportingText = { Text("Max 10 characters", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Column {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                Spacer(modifier = Modifier.height(DesperseSpacing.md))
+
+                Text(
+                    "Optional metadata shown in wallets and marketplaces.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // Royalties
-                OutlinedTextField(
-                    value = royalties,
-                    onValueChange = onRoyaltiesChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Royalties (%)") },
-                    placeholder = { Text("5") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    enabled = nftFieldsEditable,
-                    colors = textFieldColors,
-                    supportingText = { Text("0-10% creator royalties on resales", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                )
+                Spacer(modifier = Modifier.height(DesperseSpacing.lg))
 
-                // Mutable toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Mutable Metadata", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    // Symbol
+                    Text(
+                        "Symbol",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    OutlinedTextField(
+                        value = nftSymbol,
+                        onValueChange = onSymbolChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("DSPRS") },
+                        singleLine = true,
+                        enabled = nftFieldsEditable,
+                        colors = textFieldColors,
+                        shape = RoundedCornerShape(DesperseRadius.sm),
+                        supportingText = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Text(
+                                    "${nftSymbol.length} / 10",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    )
+
+                    // Royalties
+                    Text(
+                        "Royalties",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    OutlinedTextField(
+                        value = royalties,
+                        onValueChange = onRoyaltiesChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("0.00") },
+                        suffix = { Text("%") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        enabled = nftFieldsEditable,
+                        colors = textFieldColors,
+                        shape = RoundedCornerShape(DesperseRadius.sm),
+                        supportingText = {
+                            Text(
+                                "0-10% creator royalties on resales",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    )
+
+                    // Mutable toggle
+                    Text(
+                        "Metadata Mutable",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text(
-                            if (isMutable) "NFT metadata can be updated after minting"
-                            else "NFT metadata will be frozen after minting",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            if (isMutable) "Mutable" else "Immutable",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Switch(
+                            checked = isMutable,
+                            onCheckedChange = onMutableChange,
+                            enabled = mutabilityEditable,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = collectibleColor,
+                                checkedTrackColor = collectibleColor.copy(alpha = 0.3f)
+                            )
                         )
                     }
-                    Switch(
-                        checked = isMutable,
-                        onCheckedChange = onMutableChange,
-                        enabled = mutabilityEditable,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = collectibleColor,
-                            checkedTrackColor = collectibleColor.copy(alpha = 0.3f)
-                        )
-                    )
                 }
             }
         }

@@ -1,5 +1,10 @@
 package app.desperse.core.network
 
+import app.desperse.core.arweave.PrepareShareCreditsRequest
+import app.desperse.core.arweave.PrepareSigningResponse
+import app.desperse.core.arweave.RevokeCreditsResult
+import app.desperse.core.arweave.ShareCreditsResult
+import app.desperse.core.arweave.SubmitSignedDataItemRequest
 import app.desperse.core.wallet.AddWalletResponse
 import app.desperse.core.wallet.UserWalletsResponse
 import app.desperse.data.dto.AddWalletRequest
@@ -414,4 +419,24 @@ interface DesperseApi {
     suspend fun unregisterPushToken(
         @Body request: UnregisterPushTokenRequest
     ): Response<ApiEnvelope<Unit>>
+
+    // === Arweave Storage Credits (Server Proxy) ===
+
+    @POST("api/v1/arweave/share-credits/prepare")
+    suspend fun prepareShareCredits(
+        @Body request: PrepareShareCreditsRequest
+    ): Response<ApiEnvelope<PrepareSigningResponse>>
+
+    @POST("api/v1/arweave/share-credits/submit")
+    suspend fun submitShareCredits(
+        @Body request: SubmitSignedDataItemRequest
+    ): Response<ApiEnvelope<ShareCreditsResult>>
+
+    @POST("api/v1/arweave/revoke-credits/prepare")
+    suspend fun prepareRevokeCredits(): Response<ApiEnvelope<PrepareSigningResponse>>
+
+    @POST("api/v1/arweave/revoke-credits/submit")
+    suspend fun submitRevokeCredits(
+        @Body request: SubmitSignedDataItemRequest
+    ): Response<ApiEnvelope<RevokeCreditsResult>>
 }

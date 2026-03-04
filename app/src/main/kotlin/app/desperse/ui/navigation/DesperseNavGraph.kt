@@ -89,6 +89,7 @@ import app.desperse.ui.screens.settings.MessagingSettingsScreen
 import app.desperse.ui.screens.settings.NotificationSettingsScreen
 import app.desperse.ui.screens.settings.ProfileInfoScreen
 import app.desperse.ui.screens.settings.SettingsScreen
+import app.desperse.ui.screens.settings.StorageCreditsScreen
 import app.desperse.ui.screens.settings.WalletsSettingsScreen
 import app.desperse.ui.components.WalletSheet
 import app.desperse.ui.theme.DesperseSizes
@@ -487,7 +488,8 @@ fun DesperseNavGraph(
                             popUpTo(Screen.Create.route) { inclusive = true }
                         }
                     },
-                    onClose = { navController.popBackStack() }
+                    onClose = { navController.popBackStack() },
+                    onManageStorageCredits = { navController.navigate("settings/storage-credits") }
                 )
             }
             composable("post/{postId}/edit") { backStackEntry ->
@@ -495,7 +497,8 @@ fun DesperseNavGraph(
                 CreateScreen(
                     editPostId = postId,
                     onPostCreated = { navController.popBackStack() },
-                    onClose = { navController.popBackStack() }
+                    onClose = { navController.popBackStack() },
+                    onManageStorageCredits = { navController.navigate("settings/storage-credits") }
                 )
             }
             composable(Screen.Notifications.route) {
@@ -656,6 +659,11 @@ fun DesperseNavGraph(
             }
             composable("settings/messaging") {
                 MessagingSettingsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable("settings/storage-credits") {
+                StorageCreditsScreen(
                     onBack = { navController.popBackStack() }
                 )
             }

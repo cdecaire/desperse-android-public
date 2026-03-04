@@ -49,9 +49,9 @@ fun PostTypeSelector(
     val editionColor = toneEdition()
 
     val postTypeOptions = listOf(
-        PostTypeOption("post", "Standard", "Free to view", FaIcons.CirclePlus, standardColor),
-        PostTypeOption("collectible", "Collectible", "Free cNFT", FaIcons.Gem, collectibleColor),
-        PostTypeOption("edition", "Edition", "Paid NFT", FaIcons.LayerGroup, editionColor)
+        PostTypeOption("post", "Standard", "Share without minting", FaIcons.CirclePlus, standardColor),
+        PostTypeOption("collectible", "Collectible", "Free to collect as NFT", FaIcons.Gem, collectibleColor),
+        PostTypeOption("edition", "Edition", "Sell as NFT editions", FaIcons.LayerGroup, editionColor)
     )
 
     Column(
@@ -66,7 +66,7 @@ fun PostTypeSelector(
 
         postTypeOptions.forEach { option ->
             val isSelected = option.type == selectedType
-            val shape = RoundedCornerShape(DesperseRadius.md)
+            val shape = RoundedCornerShape(DesperseRadius.xl)
             val borderColor = if (isSelected) option.toneColor else MaterialTheme.colorScheme.outline
 
             Surface(

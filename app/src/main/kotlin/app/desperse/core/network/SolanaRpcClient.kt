@@ -135,6 +135,50 @@ class SolanaRpcClient @Inject constructor() {
     }
 
     /**
+     * Get the latest blockhash for building transactions.
+     */
+    suspend fun getLatestBlockhash(): Result<BlockhashInfo> = withContext(Dispatchers.IO) {
+        try {
+            val request = RpcRequest(
+                jsonrpc = "2.0",
+                id = 1,
+                method = "getLatestBlockhash",
+                params = listOf(mapOf("commitment" to "confirmed"))
+            )
+
+            val requestBody = json.encodeToString(request)
+                .toRequestBody("application/json".toMediaType())
+
+            val httpRequest = Request.Builder()
+                .url(rpcUrl)
+                .post(requestBody)
+                .build()
+
+            client.newCall(httpRequest).execute().use { response ->
+                val body = response.body?.string()
+                    ?: return@withContext Result.failure(Exception("Empty response from RPC"))
+
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(Exception("RPC request failed: ${response.code}"))
+                }
+
+                val rpcResponse = json.decodeFromString<BlockhashRpcResponse>(body)
+                if (rpcResponse.error != null) {
+                    return@withContext Result.failure(Exception("RPC error: ${rpcResponse.error.message}"))
+                }
+
+                val blockhash = rpcResponse.result?.value?.blockhash
+                    ?: return@withContext Result.failure(Exception("No blockhash in response"))
+                val lastValidBlockHeight = rpcResponse.result.value.lastValidBlockHeight
+
+                Result.success(BlockhashInfo(blockhash, lastValidBlockHeight))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Confirm a transaction by polling for its status.
      * Returns when the transaction is confirmed or times out.
      */
@@ -284,6 +328,16 @@ private object AnySerializer : kotlinx.serialization.KSerializer<Any> {
                 }
             }
             is SendTransactionConfig -> Json.encodeToJsonElement(SendTransactionConfig.serializer(), value)
+            is Map<*, *> -> kotlinx.serialization.json.buildJsonObject {
+                value.forEach { (k, v) ->
+                    when (v) {
+                        is String -> put(k.toString(), kotlinx.serialization.json.JsonPrimitive(v))
+                        is Number -> put(k.toString(), kotlinx.serialization.json.JsonPrimitive(v))
+                        is Boolean -> put(k.toString(), kotlinx.serialization.json.JsonPrimitive(v))
+                        else -> put(k.toString(), kotlinx.serialization.json.JsonPrimitive(v.toString()))
+                    }
+                }
+            }
             else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
         }
         jsonEncoder.encodeJsonElement(element)
@@ -293,6 +347,28 @@ private object AnySerializer : kotlinx.serialization.KSerializer<Any> {
         throw UnsupportedOperationException("Deserialization not supported")
     }
 }
+
+data class BlockhashInfo(val blockhash: String, val lastValidBlockHeight: Long)
+
+@Serializable
+private data class BlockhashRpcResponse(
+    val jsonrpc: String? = null,
+    val id: Int? = null,
+    val result: BlockhashResult? = null,
+    val error: RpcError? = null
+)
+
+@Serializable
+private data class BlockhashResult(
+    val context: SignatureContext? = null,
+    val value: BlockhashValue? = null
+)
+
+@Serializable
+private data class BlockhashValue(
+    val blockhash: String,
+    val lastValidBlockHeight: Long
+)
 
 // Custom exceptions for better error handling
 class RpcException(message: String, val code: Int) : Exception(message)

@@ -249,6 +249,22 @@ private fun PostCardHeader(
                         color = typeTone
                     )
                 }
+
+                // Arweave permanent storage badge
+                if (post.storageType == "arweave") {
+                    Text(
+                        text = "·",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FaIcon(
+                        icon = FaIcons.Database,
+                        size = 10.dp,
+                        tint = DesperseTones.Info,
+                        style = FaIconStyle.Solid,
+                        contentDescription = "Permanent storage"
+                    )
+                }
             }
         }
 

@@ -39,6 +39,7 @@ import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.components.SwipeableCommentItem
 import app.desperse.ui.components.WalletPickerSheet
 import app.desperse.data.dto.response.MentionUser
+import app.desperse.core.arweave.ArweaveUtils
 import app.desperse.ui.components.media.PostMedia
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
@@ -51,6 +52,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import androidx.compose.ui.platform.LocalContext
@@ -380,6 +383,13 @@ private fun PostDetailContent(
                 onCollectClick = onCollectClick,
                 onPurchaseClick = onPurchaseClick
             )
+        }
+
+        // Arweave storage status (for editions with permanent storage)
+        if (post.storageType == "arweave" && !post.arweaveStatus.isNullOrBlank()) {
+            item {
+                ArweaveStatusRow(post = post)
+            }
         }
 
         // Caption
@@ -731,6 +741,86 @@ private fun PostDetailCaption(
         )
     }
 }
+
+@Composable
+private fun ArweaveStatusRow(post: Post) {
+    val context = LocalContext.current
+    val (icon, text, color, isTappable) = remember(post.arweaveStatus, post.arweaveMediaTxId) {
+        when (post.arweaveStatus) {
+            "uploaded" -> ArweaveStatusInfo(
+                icon = FaIcons.Database,
+                text = "Stored permanently on Arweave",
+                color = DesperseTones.Success,
+                isTappable = !post.arweaveMediaTxId.isNullOrBlank()
+            )
+            "funded" -> ArweaveStatusInfo(
+                icon = FaIcons.Database,
+                text = "Permanent storage enabled",
+                color = DesperseTones.Info,
+                isTappable = false
+            )
+            "uploading" -> ArweaveStatusInfo(
+                icon = FaIcons.CloudArrowUp,
+                text = "Uploading to Arweave...",
+                color = DesperseTones.Info,
+                isTappable = false
+            )
+            "failed" -> ArweaveStatusInfo(
+                icon = FaIcons.CircleExclamation,
+                text = "Arweave upload failed",
+                color = DesperseTones.Destructive,
+                isTappable = false
+            )
+            else -> ArweaveStatusInfo(
+                icon = FaIcons.Database,
+                text = "Permanent storage",
+                color = DesperseTones.Info,
+                isTappable = false
+            )
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (isTappable) Modifier.clickable {
+                    post.arweaveMediaTxId?.let { txId ->
+                        val url = ArweaveUtils.arweaveTxUrl(txId)
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    }
+                } else Modifier
+            )
+            .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        FaIcon(
+            icon = icon,
+            size = 12.dp,
+            tint = color
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = color
+        )
+        if (isTappable) {
+            FaIcon(
+                icon = FaIcons.ArrowUpRightFromSquare,
+                size = 10.dp,
+                tint = color
+            )
+        }
+    }
+}
+
+private data class ArweaveStatusInfo(
+    val icon: String,
+    val text: String,
+    val color: androidx.compose.ui.graphics.Color,
+    val isTappable: Boolean
+)
 
 @Composable
 private fun ErrorState(

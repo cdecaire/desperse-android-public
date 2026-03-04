@@ -81,6 +81,12 @@ private val accountSettings = listOf(
         description = "Control who can message you"
     ),
     SettingsItemData(
+        route = "settings/storage-credits",
+        label = "Storage Credits",
+        icon = FaIcons.Database,
+        description = "Manage Arweave permanent storage credits"
+    ),
+    SettingsItemData(
         route = "settings/app",
         label = "App Settings",
         icon = FaIcons.Gear,

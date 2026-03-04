@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.desperse.core.arweave.ArweaveUtils
 import app.desperse.data.PostUpdateManager
 import app.desperse.data.dto.request.CreateAssetRequest
 import app.desperse.data.dto.request.CreatePostRequest
@@ -13,7 +14,9 @@ import app.desperse.data.dto.response.MentionUser
 import app.desperse.data.model.Categories
 import app.desperse.data.model.MediaConstants
 import app.desperse.data.model.Post
+import app.desperse.data.repository.ArweaveRepository
 import app.desperse.data.repository.PostRepository
+import app.desperse.core.wallet.TransactionWalletManager
 import app.desperse.data.upload.MediaUploadService
 import app.desperse.data.upload.UploadState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,6 +69,10 @@ data class CreatePostUiState(
     val maxSupplyDisplay: String = "",
     val protectDownload: Boolean = false,
 
+    // Arweave permanent storage
+    val storageType: String = "centralized", // "centralized" or "arweave"
+    val arweaveFundingState: ArweaveFundingState = ArweaveFundingState.NotChecked,
+
     // State
     val isSubmitting: Boolean = false,
     val submitError: String? = null,
@@ -89,8 +96,23 @@ data class FieldLocking(
     val areCategoriesEditable: Boolean = true,
     val areNftFieldsEditable: Boolean = true,
     val isMutabilityEditable: Boolean = true,
-    val arePricingEditable: Boolean = true
+    val arePricingEditable: Boolean = true,
+    val isStorageTypeLocked: Boolean = false
 )
+
+sealed class ArweaveFundingState {
+    data object NotChecked : ArweaveFundingState()
+    data object Loading : ArweaveFundingState()
+    data class Loaded(
+        val estimatedCostWinc: String,
+        val estimatedCostUsd: Double,
+        val walletWinc: String,
+        val sharedRemainingWinc: String,
+        val hasSufficientSharedCredits: Boolean,
+        val hasActiveApproval: Boolean
+    ) : ArweaveFundingState()
+    data class Error(val message: String) : ArweaveFundingState()
+}
 
 sealed class CreatePostEvent {
     data class PostCreated(val postId: String) : CreatePostEvent()
@@ -103,7 +125,9 @@ sealed class CreatePostEvent {
 class CreatePostViewModel @Inject constructor(
     private val postRepository: PostRepository,
     private val uploadService: MediaUploadService,
-    private val postUpdateManager: PostUpdateManager
+    private val postUpdateManager: PostUpdateManager,
+    private val arweaveRepository: ArweaveRepository,
+    private val transactionWalletManager: TransactionWalletManager
 ) : ViewModel() {
 
     companion object {
@@ -227,6 +251,11 @@ class CreatePostViewModel @Inject constructor(
                 }
                 // After upload, enforce max 1 downloadable constraint
                 enforceDownloadableConstraint(itemId)
+
+                // Recalculate Arweave cost if permanent storage is enabled
+                if (_uiState.value.storageType == "arweave") {
+                    checkArweaveFunding()
+                }
             }
             result.onFailure { error ->
                 updateMediaItemState(itemId, UploadState.Failed(error.message ?: "Upload failed"))
@@ -330,6 +359,106 @@ class CreatePostViewModel @Inject constructor(
         _uiState.update { it.copy(protectDownload = protect) }
     }
 
+    // === Arweave Storage ===
+
+    fun updateStorageType(type: String) {
+        if (_uiState.value.fieldLocking.isStorageTypeLocked) return
+        _uiState.update { it.copy(storageType = type) }
+        if (type == "arweave") {
+            checkArweaveFunding()
+        } else {
+            _uiState.update { it.copy(arweaveFundingState = ArweaveFundingState.NotChecked) }
+        }
+    }
+
+    fun checkArweaveFunding() {
+        if (_uiState.value.arweaveFundingState is ArweaveFundingState.Loading) return
+
+        _uiState.update { it.copy(arweaveFundingState = ArweaveFundingState.Loading) }
+
+        viewModelScope.launch {
+            try {
+                // Estimate total media size for price calculation
+                val totalBytes = _uiState.value.mediaItems.sumOf { it.fileSize }.coerceAtLeast(1024L)
+                val mediaCount = _uiState.value.mediaItems.size
+                Log.d(TAG, "checkArweaveFunding: totalBytes=$totalBytes, mediaItems=$mediaCount")
+
+                // Fetch price, balance, and rates
+                val priceResult = arweaveRepository.getUploadPrice(totalBytes)
+                val walletAddress = transactionWalletManager.getActiveWalletAddress()
+                if (walletAddress == null) {
+                    Log.w(TAG, "checkArweaveFunding: no wallet connected")
+                    _uiState.update {
+                        it.copy(arweaveFundingState = ArweaveFundingState.Error("No wallet connected"))
+                    }
+                    return@launch
+                }
+
+                // Use balance endpoint which includes approvals
+                val balanceResult = arweaveRepository.getBalance(
+                    walletAddress = walletAddress,
+                    forceRefresh = false
+                )
+                val ratesResult = arweaveRepository.getFiatRates()
+
+                val price = priceResult.getOrNull()
+                val balance = balanceResult.getOrNull()
+                val rates = ratesResult.getOrNull()
+
+                Log.d(TAG, "checkArweaveFunding: price=${price?.winc}, balance=${balance?.winc}, rates=${rates?.winc}")
+
+                if (price == null) {
+                    Log.e(TAG, "checkArweaveFunding: price is null, error=${priceResult.exceptionOrNull()?.message}")
+                    _uiState.update {
+                        it.copy(arweaveFundingState = ArweaveFundingState.Error("Failed to get upload price"))
+                    }
+                    return@launch
+                }
+
+                val sharedRemaining = balance?.let {
+                    ArweaveUtils.calculateSharedRemaining(it.givenApprovals)
+                } ?: java.math.BigInteger.ZERO
+
+                val hasActive = balance?.let {
+                    ArweaveUtils.hasActiveApproval(it.givenApprovals)
+                } ?: false
+
+                val hasSufficient = ArweaveUtils.hasSufficientShared(sharedRemaining, price.winc)
+
+                val costUsd = if (rates != null) {
+                    val wincPerDollar = rates.winc.toBigDecimalOrNull() ?: java.math.BigDecimal.ONE
+                    val costWinc = price.winc.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+                    if (wincPerDollar.compareTo(java.math.BigDecimal.ZERO) != 0) {
+                        costWinc.divide(wincPerDollar, 4, java.math.RoundingMode.HALF_UP).toDouble()
+                    } else 0.0
+                } else 0.0
+
+                Log.d(TAG, "checkArweaveFunding LOADED: costWinc=${price.winc}, costUsd=$costUsd, " +
+                    "sharedRemainingWinc=$sharedRemaining, hasActiveApproval=$hasActive, hasSufficient=$hasSufficient")
+
+                _uiState.update {
+                    it.copy(
+                        arweaveFundingState = ArweaveFundingState.Loaded(
+                            estimatedCostWinc = price.winc,
+                            estimatedCostUsd = costUsd,
+                            walletWinc = balance?.winc ?: "0",
+                            sharedRemainingWinc = sharedRemaining.toString(),
+                            hasSufficientSharedCredits = hasSufficient,
+                            hasActiveApproval = hasActive
+                        )
+                    )
+                }
+
+                Log.d(TAG, "checkArweaveFunding: state updated to Loaded, current storageType=${_uiState.value.storageType}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Arweave funding check failed", e)
+                _uiState.update {
+                    it.copy(arweaveFundingState = ArweaveFundingState.Error(e.message ?: "Unknown error"))
+                }
+            }
+        }
+    }
+
     // === Validation ===
 
     fun isValid(): Boolean {
@@ -344,6 +473,13 @@ class CreatePostViewModel @Inject constructor(
             val minPrice = if (state.currency == "SOL") MIN_PRICE_SOL else MIN_PRICE_USDC
             if (price < minPrice) return false
             if (state.nftName.isBlank()) return false
+
+            // Arweave validation: must have sufficient shared credits + active approval
+            if (state.storageType == "arweave") {
+                val funding = state.arweaveFundingState
+                if (funding !is ArweaveFundingState.Loaded) return false
+                if (!funding.hasSufficientSharedCredits || !funding.hasActiveApproval) return false
+            }
         }
 
         return true
@@ -408,7 +544,8 @@ class CreatePostViewModel @Inject constructor(
                     isMutable = state.isMutable,
                     protectDownload = state.protectDownload,
                     mediaMimeType = firstItem.mimeType.ifBlank { null },
-                    mediaFileSize = firstItem.fileSize.takeIf { it > 0 }
+                    mediaFileSize = firstItem.fileSize.takeIf { it > 0 },
+                    storageType = if (state.postType == "edition" && state.storageType == "arweave") "arweave" else null
                 )
 
                 val result = postRepository.createPost(request)
@@ -532,7 +669,8 @@ class CreatePostViewModel @Inject constructor(
                 currency = post.currency ?: "SOL",
                 maxSupplyEnabled = post.maxSupply != null,
                 maxSupplyDisplay = post.maxSupply?.toString() ?: "",
-                mediaItems = items
+                mediaItems = items,
+                storageType = post.storageType ?: "centralized"
             )
         }
     }
@@ -560,7 +698,8 @@ class CreatePostViewModel @Inject constructor(
                 !isEdition -> false
                 editState.hasConfirmedPurchases -> false
                 else -> true
-            }
+            },
+            isStorageTypeLocked = state.storageType == "arweave" // Can't downgrade from arweave
         )
 
         _uiState.update { it.copy(editState = editState, fieldLocking = locking) }

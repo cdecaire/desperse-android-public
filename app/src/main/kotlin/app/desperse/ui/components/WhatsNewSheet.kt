@@ -41,6 +41,14 @@ data class WhatsNewContent(
  * Add a new entry here each time you release a version.
  */
 val changelogs = mapOf(
+    7 to WhatsNewContent(
+        version = "1.0.6",
+        items = listOf(
+            "Permanent storage on Arweave for editions",
+            "Manage Arweave storage credits in settings",
+            "Improved analytics and notification tracking",
+        )
+    ),
     6 to WhatsNewContent(
         version = "1.0.5",
         items = listOf(

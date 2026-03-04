@@ -121,6 +121,9 @@ object FaIcons {
     const val HexagonImage = "\uf3a5"  // For 1/1 editions (using Gem as fallback)
     const val Cube = "\uf1b2"
     const val Cubes = "\uf1b3"
+    const val Database = "\uf1c0"
+    const val HardDrive = "\uf0a0"
+    const val CloudArrowUp = "\uf0ee"
     const val Wallet = "\uf555"
     const val BagShopping = "\uf290"
     const val Coins = "\uf51e"
@@ -189,6 +192,7 @@ object FaIcons {
     const val Comments = "\uf086"
     const val CircleQuestion = "\uf059"
     const val ArrowRightFromBracket = "\uf08b"
+    const val ArrowUpRightFromSquare = "\uf08e"
     const val SignOut = "\uf08b"
 
     // Layout

@@ -30,7 +30,12 @@ data class Post(
     // Multi-asset posts (only present if >1 asset)
     val assets: List<PostAsset>? = null,
     // Downloadable assets (non-previewable: audio, documents, 3D)
-    val downloadableAssets: List<DownloadableAsset>? = null
+    val downloadableAssets: List<DownloadableAsset>? = null,
+    // Arweave permanent storage
+    val storageType: String? = null, // "centralized" or "arweave"
+    val arweaveStatus: String? = null, // "funded", "uploading", "uploaded", "failed"
+    val arweaveMediaTxId: String? = null,
+    val arweaveMetadataTxId: String? = null
 )
 
 /**
