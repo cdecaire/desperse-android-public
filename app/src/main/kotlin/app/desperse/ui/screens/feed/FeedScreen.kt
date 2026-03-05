@@ -30,12 +30,14 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import app.desperse.data.NotificationCounters
 import app.desperse.ui.components.NewPostsToast
@@ -60,6 +62,7 @@ import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.DesperseTextButton
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.components.CommentSheet
 import app.desperse.ui.components.PostCard
 import app.desperse.ui.components.PostCardSkeleton
 import app.desperse.ui.components.ReportContentPreview
@@ -109,6 +112,19 @@ fun FeedScreen(
         }
     }
 
+    // Infinite scroll: load more when near the end of the list
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalItems to lastVisibleIndex
+        }.collect { (totalItems, lastVisibleIndex) ->
+            if (totalItems > 0 && lastVisibleIndex >= totalItems - 6) {
+                viewModel.loadMore()
+            }
+        }
+    }
+
     // Get creators for current tab
     val currentTabCreators = when (selectedTab) {
         "for-you" -> notificationCounters.forYouCreators
@@ -127,6 +143,11 @@ fun FeedScreen(
     // Delete confirmation state
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var deletePostId by remember { mutableStateOf("") }
+
+    // Comment sheet state
+    var showCommentSheet by remember { mutableStateOf(false) }
+    var reportContentType by remember { mutableStateOf("post") }
+    val commentSheetViewModel: CommentSheetViewModel = hiltViewModel()
 
     // Lifecycle observer for periodic refresh
     DisposableEffect(lifecycleOwner) {
@@ -172,12 +193,40 @@ fun FeedScreen(
         // Report Sheet
         ReportSheet(
             open = showReportSheet,
-            onDismiss = { showReportSheet = false },
-            contentType = "post",
+            onDismiss = {
+                showReportSheet = false
+                reportContentType = "post"
+            },
+            contentType = reportContentType,
             contentPreview = reportContentPreview ?: ReportContentPreview(userName = ""),
             onSubmit = { reasons, details ->
-                viewModel.createReport("post", reportPostId, reasons, details)
+                viewModel.createReport(reportContentType, reportPostId, reasons, details)
             }
+        )
+
+        // Comment Sheet
+        CommentSheet(
+            isOpen = showCommentSheet,
+            onDismiss = {
+                showCommentSheet = false
+                commentSheetViewModel.clearState()
+            },
+            onUserClick = { slug ->
+                showCommentSheet = false
+                onUserClick(slug)
+            },
+            onReportComment = { comment ->
+                showCommentSheet = false
+                reportContentType = "comment"
+                reportPostId = comment.id
+                reportContentPreview = ReportContentPreview(
+                    userName = comment.user.displayName ?: comment.user.slug,
+                    userAvatarUrl = comment.user.avatarUrl,
+                    contentText = comment.content
+                )
+                showReportSheet = true
+            },
+            viewModel = commentSheetViewModel
         )
 
         // Delete confirmation dialog
@@ -290,6 +339,7 @@ fun FeedScreen(
                             }
                             val onReportStable = remember(post.id) {
                                 {
+                                    reportContentType = "post"
                                     reportPostId = post.id
                                     reportContentPreview = ReportContentPreview(
                                         userName = post.user.displayName ?: post.user.slug,
@@ -311,13 +361,20 @@ fun FeedScreen(
                             val collectState = uiState.collectStates[post.id] ?: CollectState.Idle
                             val purchaseState = uiState.purchaseStates[post.id] ?: PurchaseState.Idle
 
+                            val onCommentClickStable = remember(post.id, post.commentCount) {
+                                {
+                                    commentSheetViewModel.openForPost(post.id, post.commentCount)
+                                    showCommentSheet = true
+                                }
+                            }
+
                             PostCard(
                                 post = post,
                                 onClick = onClickStable,
                                 onUserClick = onUserClickStable,
                                 onMentionClick = onUserClick,
                                 onLikeClick = onLikeClickStable,
-                                onCommentClick = onClickStable,
+                                onCommentClick = onCommentClickStable,
                                 onCollectClick = onCollectClickStable,
                                 onReport = onReportStable,
                                 onEditPost = onEditStable,
@@ -327,6 +384,24 @@ fun FeedScreen(
                                 purchaseState = purchaseState
                             )
                         }
+
+                            // Loading more indicator
+                            if (uiState.isLoadingMore) {
+                                item(key = "loading_more") {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = DesperseSpacing.lg),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.height(24.dp).width(24.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
                     }
 
                         // New posts toast - appears when scrolled down and new posts exist

@@ -1,16 +1,14 @@
 package app.desperse.ui.screens.post
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import app.desperse.ui.theme.DesperseSizes
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,37 +18,31 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.desperse.data.dto.response.Comment
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
-import app.desperse.ui.components.CollectButton
-import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.ButtonVariant
+import app.desperse.ui.components.CommentSheet
+import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.MentionText
-import app.desperse.ui.components.MentionTextField
 import app.desperse.ui.components.InstalledWallet
 import app.desperse.ui.components.PostCardMenuSheet
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
-import app.desperse.ui.components.SwipeableCommentItem
 import app.desperse.ui.components.WalletPickerSheet
-import app.desperse.data.dto.response.MentionUser
-import app.desperse.core.arweave.ArweaveUtils
+import app.desperse.ui.components.media.MediaType
 import app.desperse.ui.components.media.PostMedia
+import app.desperse.ui.components.media.detectMediaType
+import app.desperse.ui.components.media.detectMediaTypeFromMime
+import app.desperse.ui.screens.feed.CommentSheetViewModel
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.util.MintWindowPhase
+import app.desperse.ui.util.MintWindowUtils
 import coil.compose.AsyncImage
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -73,25 +65,17 @@ fun PostDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activity = LocalContext.current as Activity
     var showMenu by remember { mutableStateOf(false) }
-    var commentText by remember { mutableStateOf("") }
-    var previousCommentsSize by remember { mutableStateOf(0) }
-    val focusManager = LocalFocusManager.current
-    var commentToDelete by remember { mutableStateOf<Comment?>(null) }
     var showDeletePostConfirmation by remember { mutableStateOf(false) }
+
+    // Comment sheet state
+    var showCommentSheet by remember { mutableStateOf(false) }
+    val commentSheetViewModel: CommentSheetViewModel = hiltViewModel()
 
     // Report state
     var showReportSheet by remember { mutableStateOf(false) }
     var reportContentType by remember { mutableStateOf("post") }
     var reportContentId by remember { mutableStateOf("") }
     var reportContentPreview by remember { mutableStateOf<ReportContentPreview?>(null) }
-
-    // Clear comment text after successful submission (when comments list grows)
-    LaunchedEffect(uiState.comments.size, uiState.isSubmittingComment) {
-        if (!uiState.isSubmittingComment && uiState.comments.size > previousCommentsSize) {
-            commentText = ""
-        }
-        previousCommentsSize = uiState.comments.size
-    }
 
     // Lifecycle observer for periodic refresh of post counts
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -109,6 +93,9 @@ fun PostDetailScreen(
         }
     }
 
+    val post = uiState.post
+    val isNft = post != null && (post.type == "collectible" || post.type == "edition")
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -119,7 +106,7 @@ fun PostDetailScreen(
                     }
                 },
                 actions = {
-                    if (uiState.post != null) {
+                    if (post != null) {
                         DesperseFaIconButton(
                             icon = FaIcons.EllipsisVertical,
                             onClick = { showMenu = true },
@@ -133,10 +120,20 @@ fun PostDetailScreen(
                 )
             )
         },
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        bottomBar = {
+            if (isNft) {
+                StickyFooterCta(
+                    post = post,
+                    collectState = uiState.collectState,
+                    purchaseState = uiState.purchaseState,
+                    onCollectClick = { viewModel.collect() },
+                    onPurchaseClick = { viewModel.purchase(activity) }
+                )
+            }
+        }
     ) { scaffoldPadding ->
         when {
-            uiState.isLoadingPost && uiState.post == null -> {
+            uiState.isLoadingPost && post == null -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -146,7 +143,7 @@ fun PostDetailScreen(
                     CircularProgressIndicator()
                 }
             }
-            uiState.error != null && uiState.post == null -> {
+            uiState.error != null && post == null -> {
                 ErrorState(
                     message = uiState.error ?: "Failed to load post",
                     onRetry = { viewModel.loadPost() },
@@ -155,83 +152,46 @@ fun PostDetailScreen(
                         .padding(scaffoldPadding)
                 )
             }
-            uiState.post != null -> {
-                Column(
+            post != null -> {
+                PostDetailContent(
+                    post = post,
+                    purchaseState = uiState.purchaseState,
+                    onUserClick = onUserClick,
+                    onLikeClick = { viewModel.toggleLike() },
+                    onCommentClick = {
+                        commentSheetViewModel.openForPost(postId, post.commentCount)
+                        showCommentSheet = true
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(scaffoldPadding)
-                ) {
-                    PostDetailContent(
-                        post = uiState.post!!,
-                        comments = uiState.comments,
-                        isLoadingComments = uiState.isLoadingComments,
-                        collectState = uiState.collectState,
-                        purchaseState = uiState.purchaseState,
-                        currentUserId = uiState.currentUserId,
-                        deletingCommentId = uiState.deletingCommentId,
-                        onUserClick = onUserClick,
-                        onLikeClick = { viewModel.toggleLike() },
-                        onCollectClick = { viewModel.collect() },
-                        onPurchaseClick = { viewModel.purchase(activity) },
-                        onDeleteComment = { comment -> commentToDelete = comment },
-                        onReportComment = { comment ->
-                            reportContentType = "comment"
-                            reportContentId = comment.id
-                            reportContentPreview = ReportContentPreview(
-                                userName = comment.user.displayName ?: comment.user.slug,
-                                userAvatarUrl = comment.user.avatarUrl,
-                                contentText = comment.content
-                            )
-                            showReportSheet = true
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    CommentInputBar(
-                        text = commentText,
-                        onTextChange = { commentText = it },
-                        onSubmit = {
-                            if (commentText.trim().isNotEmpty()) {
-                                viewModel.createComment(commentText)
-                                commentText = ""
-                                focusManager.clearFocus()
-                            }
-                        },
-                        onSearch = { query -> viewModel.searchMentionUsers(query) },
-                        isSubmitting = uiState.isSubmittingComment,
-                        error = uiState.commentError,
-                        onErrorDismiss = { viewModel.clearCommentError() },
-                        avatarUrl = uiState.currentUserAvatarUrl,
-                        modifier = Modifier
-                            .imePadding()
-                            .navigationBarsPadding()
-                    )
-                }
+                )
             }
         }
 
         // Post menu sheet
-        uiState.post?.let { post ->
-            val isOwnPost = uiState.currentUserId != null && post.user.id == uiState.currentUserId
+        uiState.post?.let { menuPost ->
+            val isOwnPost = uiState.currentUserId != null && menuPost.user.id == uiState.currentUserId
             PostCardMenuSheet(
                 isOpen = showMenu,
-                post = post,
+                post = menuPost,
                 onDismiss = { showMenu = false },
                 onGoToPost = { /* Already on detail page */ },
                 onReport = {
                     reportContentType = "post"
-                    reportContentId = post.id
+                    reportContentId = menuPost.id
                     reportContentPreview = ReportContentPreview(
-                        userName = post.user.displayName ?: post.user.slug,
-                        userAvatarUrl = post.user.avatarUrl,
-                        contentText = post.caption,
-                        mediaUrl = post.coverUrl ?: post.mediaUrl
+                        userName = menuPost.user.displayName ?: menuPost.user.slug,
+                        userAvatarUrl = menuPost.user.avatarUrl,
+                        contentText = menuPost.caption,
+                        mediaUrl = menuPost.coverUrl ?: menuPost.mediaUrl
                     )
                     showReportSheet = true
                 },
-                onEditPost = { onEditPost(post.id) },
+                onEditPost = { onEditPost(menuPost.id) },
                 onDeletePost = { showDeletePostConfirmation = true },
                 hideGoToPost = true,
-                hasDownloadAccess = post.isCollected || isOwnPost,
+                hasDownloadAccess = menuPost.isCollected || isOwnPost,
                 isOwnPost = isOwnPost
             )
         }
@@ -264,32 +224,30 @@ fun PostDetailScreen(
             )
         }
 
-        // Delete comment confirmation dialog
-        commentToDelete?.let { comment ->
-            AlertDialog(
-                onDismissRequest = { commentToDelete = null },
-                title = { Text("Delete comment?") },
-                text = { Text("This action cannot be undone.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.deleteComment(comment.id)
-                            commentToDelete = null
-                        },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { commentToDelete = null }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
+        // Comment Sheet
+        CommentSheet(
+            isOpen = showCommentSheet,
+            onDismiss = {
+                showCommentSheet = false
+                commentSheetViewModel.clearState()
+            },
+            onUserClick = { slug ->
+                showCommentSheet = false
+                onUserClick(slug)
+            },
+            onReportComment = { comment ->
+                showCommentSheet = false
+                reportContentType = "comment"
+                reportContentId = comment.id
+                reportContentPreview = ReportContentPreview(
+                    userName = comment.user.displayName ?: comment.user.slug,
+                    userAvatarUrl = comment.user.avatarUrl,
+                    contentText = comment.content
+                )
+                showReportSheet = true
+            },
+            viewModel = commentSheetViewModel
+        )
 
         // Report sheet
         ReportSheet(
@@ -321,21 +279,128 @@ fun PostDetailScreen(
     }
 }
 
+/**
+ * Sticky footer CTA for NFT posts (collectible/edition).
+ * Uses DesperseButton(variant=Default, size=Cta) full-width.
+ */
+@Composable
+private fun StickyFooterCta(
+    post: Post,
+    collectState: CollectState,
+    purchaseState: PurchaseState,
+    onCollectClick: () -> Unit,
+    onPurchaseClick: () -> Unit
+) {
+    val isEdition = post.type == "edition"
+
+    val mintPhase = remember(post.mintWindowStart, post.mintWindowEnd) {
+        MintWindowUtils.getMintWindowPhase(post.mintWindowStart, post.mintWindowEnd)
+    }
+
+    val isCollected = post.isCollected ||
+            collectState is CollectState.Success ||
+            purchaseState is PurchaseState.Success
+    val isFailed = (collectState is CollectState.Failed && !isCollected) ||
+            (purchaseState is PurchaseState.Failed && !isCollected)
+    val isLoading = collectState is CollectState.Preparing ||
+            collectState is CollectState.Confirming ||
+            purchaseState is PurchaseState.Preparing ||
+            purchaseState is PurchaseState.Signing ||
+            purchaseState is PurchaseState.Broadcasting ||
+            purchaseState is PurchaseState.Submitting ||
+            purchaseState is PurchaseState.Confirming
+
+    val isSoldOut = isEdition && post.maxSupply != null && post.maxSupply > 0 &&
+            (post.currentSupply ?: 0) >= post.maxSupply
+    val isMintScheduled = mintPhase is MintWindowPhase.Scheduled
+    val isMintEnded = mintPhase is MintWindowPhase.Ended
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+
+        if (isMintEnded && post.mintWindowEnd != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Mint ended ${MintWindowUtils.formatDateTime(post.mintWindowEnd)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            val buttonText = when {
+                isCollected -> "Collected"
+                isFailed -> "Try Again"
+                isSoldOut -> "Sold Out"
+                isMintScheduled -> "Not Yet Available"
+                isEdition && post.price != null && post.price > 0 -> {
+                    "Collect \u00B7 ${formatPriceText(post.price, post.currency)}"
+                }
+                else -> "Collect"
+            }
+            val isEnabled = !isCollected && !isSoldOut && !isLoading && !isMintScheduled
+            val containerColor = MaterialTheme.colorScheme.onSurface
+            val contentColor = MaterialTheme.colorScheme.surface
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = DesperseSpacing.md)
+                    .padding(top = DesperseSpacing.lg, bottom = DesperseSpacing.sm)
+            ) {
+                Button(
+                    onClick = { if (isEdition) onPurchaseClick() else onCollectClick() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DesperseSizes.buttonCta),
+                    enabled = isEnabled,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor,
+                        disabledContainerColor = containerColor.copy(alpha = 0.5f),
+                        disabledContentColor = contentColor.copy(alpha = 0.5f)
+                    )
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = contentColor
+                        )
+                    } else {
+                        if (isCollected) {
+                            FaIcon(
+                                icon = FaIcons.Check,
+                                size = 14.dp,
+                                tint = contentColor
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = buttonText,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PostDetailContent(
     post: Post,
-    comments: List<Comment>,
-    isLoadingComments: Boolean,
-    collectState: CollectState,
     purchaseState: PurchaseState,
-    currentUserId: String?,
-    deletingCommentId: String?,
     onUserClick: (String) -> Unit,
     onLikeClick: () -> Unit,
-    onCollectClick: () -> Unit,
-    onPurchaseClick: () -> Unit,
-    onDeleteComment: (Comment) -> Unit,
-    onReportComment: (Comment) -> Unit,
+    onCommentClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -373,84 +438,49 @@ private fun PostDetailContent(
             }
         }
 
-        // Action Bar
+        // Action Bar — simplified with passive counts on right
         item {
             PostDetailActions(
                 post = post,
-                collectState = collectState,
                 purchaseState = purchaseState,
                 onLikeClick = onLikeClick,
-                onCollectClick = onCollectClick,
-                onPurchaseClick = onPurchaseClick
+                onCommentClick = onCommentClick
             )
         }
 
-        // Arweave storage status (for editions with permanent storage)
-        if (post.storageType == "arweave" && !post.arweaveStatus.isNullOrBlank()) {
+        // NFT Name title
+        if (!post.nftName.isNullOrBlank()) {
             item {
-                ArweaveStatusRow(post = post)
+                Text(
+                    text = post.nftName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(
+                        horizontal = DesperseSpacing.md
+                    ).padding(top = DesperseSpacing.sm)
+                )
             }
         }
 
-        // Caption
+        // Caption — simplified, no username prefix
         if (!post.caption.isNullOrBlank()) {
             item {
                 PostDetailCaption(
-                    username = post.user.displayName ?: post.user.slug,
                     caption = post.caption,
-                    onUserClick = { onUserClick(post.user.slug) },
                     onMentionClick = onUserClick
                 )
             }
         }
 
-        // Comments Section Header
-        item {
-            Spacer(modifier = Modifier.height(DesperseSpacing.lg))
-            Text(
-                text = "Comments",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = DesperseSpacing.md)
-            )
-            Spacer(modifier = Modifier.height(DesperseSpacing.sm))
-        }
-
-        // Comments List
-        if (isLoadingComments) {
+        // Details section (NFT posts only)
+        if (post.type == "collectible" || post.type == "edition") {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(DesperseSpacing.lg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                }
-            }
-        } else if (comments.isEmpty()) {
-            item {
-                Text(
-                    text = "No comments yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = DesperseSpacing.md)
+                Spacer(modifier = Modifier.height(DesperseSpacing.lg))
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.surfaceVariant
                 )
-            }
-        } else {
-            items(
-                items = comments,
-                key = { it.id }
-            ) { comment ->
-                SwipeableCommentItem(
-                    comment = comment,
-                    isOwnComment = comment.user.id == currentUserId,
-                    isDeleting = deletingCommentId == comment.id,
-                    onUserClick = { onUserClick(comment.user.slug) },
-                    onMentionClick = { username -> onUserClick(username) },
-                    onDelete = { onDeleteComment(comment) },
-                    onReport = { onReportComment(comment) }
-                )
+                Spacer(modifier = Modifier.height(DesperseSpacing.sm))
+                PostDetailsSection(post = post)
             }
         }
 
@@ -506,7 +536,7 @@ private fun PostDetailHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "·",
+                    text = "\u00B7",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -515,44 +545,21 @@ private fun PostDetailHeader(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                // Type badge
-                val typeInfo = getPostTypeInfo(post)
-                if (typeInfo != null) {
-                    Text(
-                        text = "·",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        FaIcon(
-                            icon = typeInfo.icon,
-                            size = 10.dp,
-                            tint = typeInfo.color
-                        )
-                        Text(
-                            text = typeInfo.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = typeInfo.color
-                        )
-                    }
-                }
             }
         }
     }
 }
 
+/**
+ * Action bar with like + comment on left, passive collect/edition count on right.
+ * No clickable collect/buy buttons — CTA is in the sticky footer.
+ */
 @Composable
 private fun PostDetailActions(
     post: Post,
-    collectState: CollectState,
     purchaseState: PurchaseState,
     onLikeClick: () -> Unit,
-    onCollectClick: () -> Unit,
-    onPurchaseClick: () -> Unit
+    onCommentClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -589,9 +596,12 @@ private fun PostDetailActions(
                 }
             }
 
-            // Comment count (read-only)
+            // Comment count
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable(onClick = onCommentClick)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -609,130 +619,74 @@ private fun PostDetailActions(
             }
         }
 
-        // Right side: Collect/Buy button based on post type
+        // Right side: Passive collect/edition count (display-only)
         when (post.type) {
             "collectible" -> {
-                CollectButton(
-                    collectCount = post.collectCount,
-                    isCollected = post.isCollected,
-                    collectState = collectState,
-                    onClick = onCollectClick
-                )
+                val toneColor = if (post.isCollected) DesperseTones.Collectible
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FaIcon(
+                        icon = FaIcons.Gem,
+                        size = 18.dp,
+                        style = if (post.isCollected) FaIconStyle.Solid else FaIconStyle.Regular,
+                        tint = toneColor
+                    )
+                    if (post.collectCount > 0) {
+                        Text(
+                            text = formatCount(post.collectCount),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = toneColor
+                        )
+                    }
+                }
             }
             "edition" -> {
-                BuyButton(
-                    price = post.price,
-                    currency = post.currency,
-                    currentSupply = post.currentSupply ?: 0,
-                    maxSupply = post.maxSupply,
-                    isCollected = post.isCollected,
-                    purchaseState = purchaseState,
-                    onClick = onPurchaseClick
-                )
+                val isOwned = post.isCollected || purchaseState is PurchaseState.Success
+                val toneColor = if (isOwned) DesperseTones.Edition
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                val icon = if (post.maxSupply == 1) FaIcons.HexagonImage else FaIcons.Images
+                val supplyText = when {
+                    post.maxSupply == 1 -> "1/1"
+                    post.maxSupply != null && post.maxSupply > 0 ->
+                        "${post.currentSupply ?: 0}/${post.maxSupply}"
+                    else -> formatCount(post.currentSupply ?: 0)
+                }
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FaIcon(
+                        icon = icon,
+                        size = 18.dp,
+                        style = if (isOwned) FaIconStyle.Solid else FaIconStyle.Regular,
+                        tint = toneColor
+                    )
+                    Text(
+                        text = supplyText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = toneColor
+                    )
+                }
             }
         }
-    }
-}
-
-/**
- * Buy button for editions - COMPACT FORMAT
- * Matches web app design: icon + supply count only (price shown in media pill)
- * Icon: hexagon-image for 1/1, image-stack for limited/open editions
- */
-@Composable
-private fun BuyButton(
-    price: Double?,
-    currency: String?,
-    currentSupply: Int,
-    maxSupply: Int?,
-    isCollected: Boolean,
-    purchaseState: PurchaseState,
-    onClick: () -> Unit
-) {
-    val toneColor = DesperseTones.Edition
-    val isSoldOut = maxSupply != null && maxSupply > 0 && currentSupply >= maxSupply
-    val isSuccess = isCollected || purchaseState is PurchaseState.Success
-    val isFailed = purchaseState is PurchaseState.Failed
-    val isLoading = purchaseState is PurchaseState.Preparing ||
-            purchaseState is PurchaseState.Signing ||
-            purchaseState is PurchaseState.Broadcasting ||
-            purchaseState is PurchaseState.Submitting ||
-            purchaseState is PurchaseState.Confirming
-
-    // Supply count display: "2/5" for limited, "2" for open editions
-    val supplyText = when {
-        maxSupply == 1 -> "1/1"
-        maxSupply != null && maxSupply > 0 -> "$currentSupply/$maxSupply"
-        else -> formatCount(currentSupply)
-    }
-
-    // Icon: hexagon-image for 1/1, images for limited/open (same icon when owned, just solid)
-    val icon = when {
-        isFailed -> FaIcons.ArrowsRotate
-        maxSupply == 1 -> FaIcons.HexagonImage
-        else -> FaIcons.Images
-    }
-
-    // Color based on state
-    val contentColor = when {
-        isSuccess -> toneColor
-        isFailed -> DesperseTones.Destructive
-        isSoldOut -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-    val isClickable = !isSoldOut && !isLoading && !isSuccess
-
-    Row(
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
-            .then(if (isClickable) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-                color = toneColor
-            )
-        } else {
-            FaIcon(
-                icon = icon,
-                size = 18.dp,
-                style = if (isSuccess) FaIconStyle.Solid else FaIconStyle.Regular,
-                tint = contentColor
-            )
-        }
-        // Always show supply count
-        Text(
-            text = supplyText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = contentColor
-        )
     }
 }
 
 @Composable
 private fun PostDetailCaption(
-    username: String,
     caption: String,
-    onUserClick: () -> Unit,
     onMentionClick: (String) -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm)
+            .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.xs)
     ) {
-        Text(
-            text = username,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.clickable(onClick = onUserClick)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
         MentionText(
             text = caption,
             onMentionClick = onMentionClick,
@@ -742,85 +696,192 @@ private fun PostDetailCaption(
     }
 }
 
+/**
+ * Details section showing post/NFT metadata.
+ * Only shown for collectible/edition posts.
+ */
 @Composable
-private fun ArweaveStatusRow(post: Post) {
+private fun PostDetailsSection(post: Post) {
     val context = LocalContext.current
-    val (icon, text, color, isTappable) = remember(post.arweaveStatus, post.arweaveMediaTxId) {
-        when (post.arweaveStatus) {
-            "uploaded" -> ArweaveStatusInfo(
-                icon = FaIcons.Database,
-                text = "Stored permanently on Arweave",
-                color = DesperseTones.Success,
-                isTappable = !post.arweaveMediaTxId.isNullOrBlank()
-            )
-            "funded" -> ArweaveStatusInfo(
-                icon = FaIcons.Database,
-                text = "Permanent storage enabled",
-                color = DesperseTones.Info,
-                isTappable = false
-            )
-            "uploading" -> ArweaveStatusInfo(
-                icon = FaIcons.CloudArrowUp,
-                text = "Uploading to Arweave...",
-                color = DesperseTones.Info,
-                isTappable = false
-            )
-            "failed" -> ArweaveStatusInfo(
-                icon = FaIcons.CircleExclamation,
-                text = "Arweave upload failed",
-                color = DesperseTones.Destructive,
-                isTappable = false
-            )
-            else -> ArweaveStatusInfo(
-                icon = FaIcons.Database,
-                text = "Permanent storage",
-                color = DesperseTones.Info,
-                isTappable = false
-            )
+    val isNft = post.type == "collectible" || post.type == "edition"
+    if (!isNft) return
+
+    val hasMintWindow = post.mintWindowStart != null && post.mintWindowEnd != null
+
+    // Type label
+    val typeLabel = when (post.type) {
+        "collectible" -> "Collectible"
+        "edition" -> when {
+            hasMintWindow -> "Timed Edition"
+            post.maxSupply == null || post.maxSupply == 0 -> "Open Edition"
+            post.maxSupply == 1 -> "1/1"
+            else -> "Limited Edition"
+        }
+        else -> null
+    }
+
+    // Categories
+    val categoriesText = post.categories?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+
+    // Supply
+    val supplyText = when (post.type) {
+        "collectible" -> "${formatCount(post.collectCount)} collected"
+        "edition" -> {
+            val current = post.currentSupply ?: 0
+            when {
+                post.maxSupply == 1 -> "1 / 1"
+                post.maxSupply != null && post.maxSupply > 0 ->
+                    "${java.text.NumberFormat.getIntegerInstance().format(current)} / ${java.text.NumberFormat.getIntegerInstance().format(post.maxSupply)}"
+                else ->
+                    "${java.text.NumberFormat.getIntegerInstance().format(current)} / \u221E"
+            }
+        }
+        else -> null
+    }
+
+    // Price
+    val priceLabel = when {
+        post.type == "collectible" -> "Free"
+        post.price != null && post.price > 0 -> formatPriceText(post.price, post.currency)
+        else -> "Free"
+    }
+
+    // Media type
+    val mediaTypeLabel = remember(post.mediaMimeType, post.mediaUrl, post.assets, post.downloadableAssets) {
+        val mime = post.mediaMimeType
+            ?: post.assets?.firstOrNull()?.mimeType
+            ?: post.downloadableAssets?.firstOrNull()?.mimeType
+        val mediaType = if (mime != null) {
+            detectMediaTypeFromMime(mime)
+        } else {
+            detectMediaType(post.mediaUrl)
+        }
+        when (mediaType) {
+            MediaType.IMAGE -> "Image"
+            MediaType.VIDEO -> "Video"
+            MediaType.AUDIO -> "Audio"
+            MediaType.DOCUMENT -> "Document"
+            MediaType.MODEL_3D -> "3D Model"
         }
     }
 
-    Row(
+    // File size
+    val fileSize = post.mediaFileSize
+        ?: post.assets?.firstOrNull()?.fileSize
+        ?: post.downloadableAssets?.firstOrNull()?.fileSize
+    val fileSizeText = fileSize?.let { formatFileSize(it) }
+
+    // Storage
+    val storageText = when (post.storageType) {
+        "arweave" -> when (post.arweaveStatus) {
+            "uploaded" -> "Permanent (Arweave)"
+            "funded", "uploading" -> "Uploading to Arweave"
+            "failed" -> "Upload Failed"
+            else -> "Arweave"
+        }
+        else -> "Centralized"
+    }
+
+    // Token standard
+    val tokenStandard = when (post.type) {
+        "collectible" -> "Compressed NFT"
+        "edition" -> "Metaplex Core"
+        else -> null
+    }
+
+    // Token ID
+    val tokenId = when (post.type) {
+        "collectible" -> post.collectibleAssetId
+        "edition" -> post.masterMint
+        else -> null
+    }
+
+    // Mint window
+    val mintWindowText = if (hasMintWindow) {
+        "${MintWindowUtils.formatDateTime(post.mintWindowStart!!)} \u2014 ${MintWindowUtils.formatDateTime(post.mintWindowEnd!!)}"
+    } else null
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (isTappable) Modifier.clickable {
-                    post.arweaveMediaTxId?.let { txId ->
-                        val url = ArweaveUtils.arweaveTxUrl(txId)
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                    }
-                } else Modifier
-            )
-            .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(horizontal = DesperseSpacing.md)
+            .padding(top = DesperseSpacing.md)
     ) {
-        FaIcon(
-            icon = icon,
-            size = 12.dp,
-            tint = color
-        )
+        // Section header
         Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = color
+            text = "Details",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        if (isTappable) {
-            FaIcon(
-                icon = FaIcons.ArrowUpRightFromSquare,
-                size = 10.dp,
-                tint = color
+        Spacer(modifier = Modifier.height(DesperseSpacing.sm))
+
+        typeLabel?.let { DetailRow("Type", it) }
+        categoriesText?.let { DetailRow("Categories", it) }
+        supplyText?.let { DetailRow("Supply", it) }
+        DetailRow("Price", priceLabel)
+        DetailRow("Media", mediaTypeLabel)
+        fileSizeText?.let { DetailRow("File Size", it) }
+        DetailRow("Storage", storageText)
+        tokenStandard?.let { DetailRow("Token Standard", it) }
+        tokenId?.takeIf { it.isNotBlank() }?.let { id ->
+            DetailRow(
+                label = "Token ID",
+                value = "${id.take(4)}...${id.takeLast(4)}",
+                trailingIcon = FaIcons.ArrowUpRightFromSquare,
+                onClick = {
+                    val url = "https://solscan.io/token/$id"
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
             )
         }
+        mintWindowText?.let { DetailRow("Mint Window", it) }
     }
 }
 
-private data class ArweaveStatusInfo(
-    val icon: String,
-    val text: String,
-    val color: androidx.compose.ui.graphics.Color,
-    val isTappable: Boolean
-)
+@Composable
+private fun DetailRow(
+    label: String,
+    value: String,
+    trailingIcon: String? = null,
+    onClick: (() -> Unit)? = null
+) {
+    HorizontalDivider(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        thickness = 0.5.dp
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (trailingIcon != null) {
+                FaIcon(
+                    icon = trailingIcon,
+                    size = 12.dp,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun ErrorState(
@@ -852,33 +913,6 @@ private fun ErrorState(
 }
 
 // Helper data class for post type info
-private data class PostTypeInfo(
-    val icon: String,
-    val label: String,
-    val color: androidx.compose.ui.graphics.Color
-)
-
-@Composable
-private fun getPostTypeInfo(post: Post): PostTypeInfo? {
-    return when (post.type) {
-        "collectible" -> PostTypeInfo(
-            icon = FaIcons.Gem,
-            label = "Collectible",
-            color = DesperseTones.Collectible
-        )
-        "edition" -> PostTypeInfo(
-            icon = if (post.maxSupply == 1) FaIcons.Gem else FaIcons.Images,
-            label = when {
-                post.maxSupply == null || post.maxSupply == 0 -> "Open Edition"
-                post.maxSupply == 1 -> "1/1"
-                else -> "Limited Edition"
-            },
-            color = DesperseTones.Edition
-        )
-        else -> null
-    }
-}
-
 /**
  * Price pill overlay on media - matches web app MediaPill component
  * Style: small rounded pill with dark background
@@ -904,7 +938,7 @@ private fun MediaPill(
 }
 
 /**
- * Format price for display in pill
+ * Format price for display
  */
 private fun formatPriceText(price: Double?, currency: String?): String {
     return if (price != null && price > 0) {
@@ -930,6 +964,18 @@ private fun formatCount(count: Int): String {
 }
 
 /**
+ * Format file size in bytes to human-readable string.
+ */
+private fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes >= 1_073_741_824 -> "%.1f GB".format(bytes / 1_073_741_824.0)
+        bytes >= 1_048_576 -> "%.1f MB".format(bytes / 1_048_576.0)
+        bytes >= 1_024 -> "%.1f KB".format(bytes / 1_024.0)
+        else -> "$bytes B"
+    }
+}
+
+/**
  * Format a timestamp string to relative time (e.g., "2h", "3d")
  */
 private fun formatRelativeTime(timestamp: String): String {
@@ -951,168 +997,5 @@ private fun formatRelativeTime(timestamp: String): String {
         }
     } catch (e: Exception) {
         ""
-    }
-}
-
-/**
- * Comment input bar - Instagram-style design
- * Avatar on left, expandable input with send button inside (bottom-right)
- */
-@Composable
-private fun CommentInputBar(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onSearch: suspend (String) -> List<MentionUser>,
-    isSubmitting: Boolean,
-    error: String?,
-    onErrorDismiss: () -> Unit,
-    avatarUrl: String? = null,
-    modifier: Modifier = Modifier
-) {
-    val maxLength = 280
-    val isOverLimit = text.length > maxLength
-    val canSubmit = text.trim().isNotEmpty() && !isOverLimit && !isSubmitting
-
-    Column(
-        modifier = modifier.background(MaterialTheme.colorScheme.background)
-    ) {
-        // Top border
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-
-        // Error message (if any)
-        if (error != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.xs),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick = onErrorDismiss,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    FaIcon(
-                        icon = FaIcons.Xmark,
-                        size = 14.dp,
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-            }
-        }
-
-        // Input row: Avatar + Input container with embedded send button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = DesperseSpacing.sm, vertical = DesperseSpacing.sm),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
-        ) {
-            // Avatar
-            AsyncImage(
-                model = avatarUrl,
-                contentDescription = "Your avatar",
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentScale = ContentScale.Crop
-            )
-
-            // Input container with send button inside
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(22.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(
-                    1.dp,
-                    if (isOverLimit) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.outline
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    // Text field with @mention autocomplete
-                    MentionTextField(
-                        value = text,
-                        onValueChange = onTextChange,
-                        onSearch = onSearch,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 32.dp, max = 120.dp)
-                            .padding(vertical = 6.dp),
-                        placeholder = "Add a comment...",
-                        enabled = !isSubmitting,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            imeAction = ImeAction.Send,
-                            capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onSend = { if (canSubmit) onSubmit() }
-                        )
-                    )
-
-                    // Send button - circular, anchored to bottom-right
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (canSubmit) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            .then(
-                                if (canSubmit && !isSubmitting)
-                                    Modifier.clickable(onClick = onSubmit)
-                                else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isSubmitting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        } else {
-                            FaIcon(
-                                icon = FaIcons.ArrowUp,
-                                size = 14.dp,
-                                tint = if (canSubmit)
-                                    MaterialTheme.colorScheme.onPrimary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Over-limit warning (subtle, below the input)
-        if (isOverLimit) {
-            Text(
-                text = "Comment must be $maxLength characters or less.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(start = DesperseSpacing.md, end = DesperseSpacing.md, bottom = DesperseSpacing.xs)
-            )
-        }
     }
 }

@@ -24,17 +24,30 @@ import app.desperse.data.dto.response.MentionUser
 import app.desperse.data.dto.response.PurchaseStatusResult
 import app.desperse.data.dto.response.SubmitResult
 import app.desperse.data.model.Post
+import app.desperse.core.network.ApiMeta
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+data class FeedPage(
+    val posts: List<Post>,
+    val hasMore: Boolean,
+    val nextCursor: String?
+)
 
 @Singleton
 class PostRepository @Inject constructor(
     private val api: DesperseApi
 ) {
-    suspend fun getFeed(tab: String, cursor: String? = null, limit: Int = 20): Result<List<Post>> {
+    suspend fun getFeed(tab: String, cursor: String? = null, limit: Int = 20): Result<FeedPage> {
         return when (val result = safeApiCall { api.getPosts(tab, cursor, limit) }) {
-            is ApiResult.Success -> Result.success(result.data.posts)
+            is ApiResult.Success -> Result.success(
+                FeedPage(
+                    posts = result.data.posts,
+                    hasMore = result.meta?.hasMore ?: false,
+                    nextCursor = result.meta?.nextCursor
+                )
+            )
             is ApiResult.Error -> Result.failure(Exception(result.message))
         }
     }

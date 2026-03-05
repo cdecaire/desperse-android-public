@@ -11,8 +11,6 @@ import app.desperse.core.wallet.InstalledMwaWallet
 import app.desperse.core.wallet.MwaError
 import app.desperse.core.wallet.TransactionWalletManager
 import app.desperse.data.PostUpdateManager
-import app.desperse.data.dto.response.Comment
-import app.desperse.data.dto.response.MentionUser
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
@@ -40,17 +38,12 @@ private const val REFRESH_INTERVAL_MS = 45_000L
  */
 data class PostDetailUiState(
     val post: Post? = null,
-    val comments: List<Comment> = emptyList(),
     val isLoadingPost: Boolean = true,
-    val isLoadingComments: Boolean = true,
-    val isSubmittingComment: Boolean = false,
-    val commentError: String? = null,
     val error: String? = null,
     val collectState: CollectState = CollectState.Idle,
     val purchaseState: PurchaseState = PurchaseState.Idle,
     val currentUserAvatarUrl: String? = null,
     val currentUserId: String? = null,
-    val deletingCommentId: String? = null,
     val lastFetchTime: Long = 0L,
     // Wallet picker for external wallet selection
     val showWalletPicker: Boolean = false,
@@ -78,7 +71,6 @@ class PostDetailViewModel @Inject constructor(
 
     init {
         loadPost()
-        loadComments()
         observePostUpdates()
         observeCurrentUser()
     }
@@ -236,22 +228,6 @@ class PostDetailViewModel @Inject constructor(
         }
     }
 
-    fun loadComments() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingComments = true)
-            postRepository.getComments(postId)
-                .onSuccess { comments ->
-                    _uiState.value = _uiState.value.copy(
-                        comments = comments,
-                        isLoadingComments = false
-                    )
-                }
-                .onFailure {
-                    _uiState.value = _uiState.value.copy(isLoadingComments = false)
-                }
-        }
-    }
-
     fun toggleLike() {
         val post = _uiState.value.post ?: return
 
@@ -280,98 +256,6 @@ class PostDetailViewModel @Inject constructor(
                 // Broadcast revert to other screens
                 postUpdateManager.emitLikeUpdate(postId, post.isLiked, post.likeCount)
             }
-        }
-    }
-
-    fun createComment(content: String) {
-        val trimmedContent = content.trim()
-        if (trimmedContent.isEmpty() || trimmedContent.length > 280) return
-        if (_uiState.value.isSubmittingComment) return
-
-        _uiState.value = _uiState.value.copy(isSubmittingComment = true, commentError = null)
-
-        viewModelScope.launch {
-            postRepository.createComment(postId, trimmedContent)
-                .onSuccess { newComment ->
-                    // Add the new comment to the beginning of the list
-                    val updatedComments = listOf(newComment) + _uiState.value.comments
-                    val newCommentCount = (_uiState.value.post?.commentCount ?: 0) + 1
-
-                    _uiState.value = _uiState.value.copy(
-                        comments = updatedComments,
-                        isSubmittingComment = false,
-                        post = _uiState.value.post?.copy(commentCount = newCommentCount)
-                    )
-
-                    // Broadcast comment count update to other screens
-                    postUpdateManager.emitCommentCountUpdate(postId, newCommentCount)
-                }
-                .onFailure { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isSubmittingComment = false,
-                        commentError = error.message ?: "Failed to post comment"
-                    )
-                }
-        }
-    }
-
-    fun clearCommentError() {
-        _uiState.value = _uiState.value.copy(commentError = null)
-    }
-
-    /**
-     * Delete a comment (only own comments).
-     * Uses optimistic update with rollback on failure.
-     */
-    fun deleteComment(commentId: String) {
-        val currentUserId = _uiState.value.currentUserId ?: return
-        val comments = _uiState.value.comments
-        val commentToDelete = comments.find { it.id == commentId } ?: return
-
-        // Verify ownership
-        if (commentToDelete.user.id != currentUserId) {
-            Log.w(TAG, "Attempted to delete comment owned by another user")
-            return
-        }
-
-        // Skip if already deleting
-        if (_uiState.value.deletingCommentId != null) return
-
-        // Optimistic update: remove comment immediately
-        val updatedComments = comments.filter { it.id != commentId }
-        val newCommentCount = (_uiState.value.post?.commentCount ?: 1) - 1
-
-        _uiState.value = _uiState.value.copy(
-            comments = updatedComments,
-            deletingCommentId = commentId,
-            post = _uiState.value.post?.copy(commentCount = newCommentCount.coerceAtLeast(0))
-        )
-
-        viewModelScope.launch {
-            // Broadcast comment count update to other screens
-            postUpdateManager.emitCommentCountUpdate(postId, newCommentCount.coerceAtLeast(0))
-
-            postRepository.deleteComment(postId, commentId)
-                .onSuccess {
-                    // Successfully deleted - just clear deleting state
-                    _uiState.value = _uiState.value.copy(deletingCommentId = null)
-                }
-                .onFailure { error ->
-                    Log.e(TAG, "Failed to delete comment: ${error.message}")
-                    // Rollback: restore the comment
-                    val restoredComments = comments // Original list
-                    val originalCommentCount = (_uiState.value.post?.commentCount ?: 0) + 1
-
-                    _uiState.value = _uiState.value.copy(
-                        comments = restoredComments,
-                        deletingCommentId = null,
-                        post = _uiState.value.post?.copy(commentCount = originalCommentCount),
-                        commentError = error.message ?: "Failed to delete comment"
-                    )
-
-                    // Broadcast rollback to other screens
-                    postUpdateManager.emitCommentCountUpdate(postId, originalCommentCount)
-                }
         }
     }
 
@@ -669,14 +553,6 @@ class PostDetailViewModel @Inject constructor(
 
     fun resetPurchaseState() {
         _uiState.value = _uiState.value.copy(purchaseState = PurchaseState.Idle)
-    }
-
-    /**
-     * Search users for @mention autocomplete
-     */
-    suspend fun searchMentionUsers(query: String): List<MentionUser> {
-        return postRepository.searchMentionUsers(query.ifEmpty { null })
-            .getOrElse { emptyList() }
     }
 
     /**

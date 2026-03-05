@@ -24,6 +24,7 @@ data class Post(
     val maxSupply: Int? = null,
     val currentSupply: Int? = null,
     val nftName: String? = null,
+    val categories: List<String>? = null,
     // NFT blockchain addresses (for explorer links)
     val masterMint: String? = null, // Master mint address for editions
     val collectibleAssetId: String? = null, // Asset ID for collectibles (cNFTs)
@@ -35,7 +36,13 @@ data class Post(
     val storageType: String? = null, // "centralized" or "arweave"
     val arweaveStatus: String? = null, // "funded", "uploading", "uploaded", "failed"
     val arweaveMediaTxId: String? = null,
-    val arweaveMetadataTxId: String? = null
+    val arweaveMetadataTxId: String? = null,
+    // Timed edition mint window
+    val mintWindowStart: String? = null,
+    val mintWindowEnd: String? = null,
+    // File metadata from first media asset (for detail views)
+    val mediaFileSize: Long? = null,
+    val mediaMimeType: String? = null
 )
 
 /**
@@ -47,6 +54,7 @@ data class PostAsset(
     val id: String,
     val url: String,
     val mimeType: String,
+    val fileSize: Long? = null,
     val sortOrder: Int
 )
 

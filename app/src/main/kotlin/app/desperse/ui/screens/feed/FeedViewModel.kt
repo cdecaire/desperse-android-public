@@ -15,6 +15,7 @@ import app.desperse.data.PostUpdateManager
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
+import app.desperse.data.repository.FeedPage
 import app.desperse.data.repository.PostRepository
 import app.desperse.data.repository.UserRepository
 import app.desperse.ui.components.ToastManager
@@ -34,6 +35,9 @@ data class FeedUiState(
     val posts: List<Post> = emptyList(),
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val hasMore: Boolean = false,
+    val nextCursor: String? = null,
     val error: String? = null,
     val collectStates: Map<String, CollectState> = emptyMap(),
     val purchaseStates: Map<String, PurchaseState> = emptyMap(),
@@ -148,10 +152,10 @@ class FeedViewModel @Inject constructor(
     private fun silentRefresh() {
         viewModelScope.launch {
             postRepository.getFeed(_selectedTab.value)
-                .onSuccess { posts ->
+                .onSuccess { feedPage ->
                     _uiState.update { currentState ->
                         // Merge new data while preserving local state (collect states, etc.)
-                        val collectedPostIds = posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
+                        val collectedPostIds = feedPage.posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
                         val updatedCollectStates = currentState.collectStates.filterKeys { id ->
                             id !in collectedPostIds
                         }
@@ -160,7 +164,9 @@ class FeedViewModel @Inject constructor(
                         }
 
                         currentState.copy(
-                            posts = posts,
+                            posts = feedPage.posts,
+                            hasMore = feedPage.hasMore,
+                            nextCursor = feedPage.nextCursor,
                             error = null,
                             collectStates = updatedCollectStates,
                             purchaseStates = updatedPurchaseStates,
@@ -291,11 +297,11 @@ class FeedViewModel @Inject constructor(
             Trace.beginSection("Feed.getFeed")
             postRepository.getFeed(_selectedTab.value)
                 .also { Trace.endSection() } // Feed.getFeed
-                .onSuccess { posts ->
+                .onSuccess { feedPage ->
                     _uiState.update {
                         // Clear collectStates/purchaseStates for posts that are now marked as collected
                         // This prevents stale "failed" states from persisting after refresh
-                        val collectedPostIds = posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
+                        val collectedPostIds = feedPage.posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
                         val updatedCollectStates = it.collectStates.filterKeys { id ->
                             id !in collectedPostIds
                         }
@@ -304,9 +310,11 @@ class FeedViewModel @Inject constructor(
                         }
 
                         it.copy(
-                            posts = posts,
+                            posts = feedPage.posts,
                             isLoading = false,
                             isRefreshing = false,
+                            hasMore = feedPage.hasMore,
+                            nextCursor = feedPage.nextCursor,
                             error = null,
                             collectStates = updatedCollectStates,
                             purchaseStates = updatedPurchaseStates,
@@ -316,7 +324,7 @@ class FeedViewModel @Inject constructor(
                     }
 
                     // Update lastSeen timestamp to clear new post badge
-                    posts.firstOrNull()?.createdAt?.let { timestamp ->
+                    feedPage.posts.firstOrNull()?.createdAt?.let { timestamp ->
                         notificationCountManager.updateLastSeen(_selectedTab.value, timestamp)
                     }
                 }
@@ -328,6 +336,34 @@ class FeedViewModel @Inject constructor(
                             error = error.message ?: "Failed to load feed"
                         )
                     }
+                }
+        }
+    }
+
+    fun loadMore() {
+        val state = _uiState.value
+        if (state.isLoadingMore || !state.hasMore || state.nextCursor == null) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMore = true) }
+
+            postRepository.getFeed(_selectedTab.value, cursor = state.nextCursor)
+                .onSuccess { feedPage ->
+                    _uiState.update { current ->
+                        // Deduplicate by post ID
+                        val existingIds = current.posts.map { it.id }.toSet()
+                        val newPosts = feedPage.posts.filter { it.id !in existingIds }
+
+                        current.copy(
+                            posts = current.posts + newPosts,
+                            isLoadingMore = false,
+                            hasMore = feedPage.hasMore,
+                            nextCursor = feedPage.nextCursor
+                        )
+                    }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(isLoadingMore = false) }
                 }
         }
     }
