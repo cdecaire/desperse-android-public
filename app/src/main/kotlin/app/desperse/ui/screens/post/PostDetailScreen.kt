@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import app.desperse.ui.components.AvatarSize
+import app.desperse.ui.components.DesperseAvatar
 import app.desperse.ui.theme.DesperseSizes
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -44,14 +46,16 @@ import app.desperse.ui.util.MintWindowPhase
 import app.desperse.ui.util.MintWindowUtils
 import coil.compose.AsyncImage
 import android.app.Activity
-import android.content.Intent
-import android.net.Uri
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import app.desperse.core.preferences.ExplorerOption
+import app.desperse.core.util.openInAppBrowser
+import app.desperse.ui.components.PostCardMenuEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -472,16 +476,14 @@ private fun PostDetailContent(
             }
         }
 
-        // Details section (NFT posts only)
-        if (post.type == "collectible" || post.type == "edition") {
-            item {
-                Spacer(modifier = Modifier.height(DesperseSpacing.lg))
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.surfaceVariant
-                )
-                Spacer(modifier = Modifier.height(DesperseSpacing.sm))
-                PostDetailsSection(post = post)
-            }
+        // Details section
+        item {
+            Spacer(modifier = Modifier.height(DesperseSpacing.lg))
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.surfaceVariant
+            )
+            Spacer(modifier = Modifier.height(DesperseSpacing.sm))
+            PostDetailsSection(post = post)
         }
 
         // Bottom spacing
@@ -504,14 +506,11 @@ private fun PostDetailHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
-        AsyncImage(
-            model = post.user.avatarUrl,
-            contentDescription = post.user.displayName ?: post.user.slug,
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
+        DesperseAvatar(
+            imageUrl = post.user.avatarUrl,
+            contentDescription = "${post.user.displayName ?: post.user.slug}'s avatar",
+            identityInput = post.user.walletAddress ?: post.user.slug,
+            size = AvatarSize.Medium
         )
 
         Spacer(modifier = Modifier.width(DesperseSpacing.sm))
@@ -697,16 +696,23 @@ private fun PostDetailCaption(
 }
 
 /**
- * Details section showing post/NFT metadata.
- * Only shown for collectible/edition posts.
+ * Details section showing post metadata.
+ * Adapts fields shown based on post type (standard, collectible, edition).
  */
 @Composable
 private fun PostDetailsSection(post: Post) {
     val context = LocalContext.current
     val isNft = post.type == "collectible" || post.type == "edition"
-    if (!isNft) return
-
     val hasMintWindow = post.mintWindowStart != null && post.mintWindowEnd != null
+
+    // Explorer preference for Token ID link
+    val entryPoint = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            PostCardMenuEntryPoint::class.java
+        )
+    }
+    val explorerOption by entryPoint.appPreferences().explorer.collectAsState(initial = ExplorerOption.ORB)
 
     // Type label
     val typeLabel = when (post.type) {
@@ -717,13 +723,13 @@ private fun PostDetailsSection(post: Post) {
             post.maxSupply == 1 -> "1/1"
             else -> "Limited Edition"
         }
-        else -> null
+        else -> "Post"
     }
 
     // Categories
     val categoriesText = post.categories?.takeIf { it.isNotEmpty() }?.joinToString(", ")
 
-    // Supply
+    // Supply (NFT only)
     val supplyText = when (post.type) {
         "collectible" -> "${formatCount(post.collectCount)} collected"
         "edition" -> {
@@ -739,8 +745,9 @@ private fun PostDetailsSection(post: Post) {
         else -> null
     }
 
-    // Price
+    // Price (NFT only)
     val priceLabel = when {
+        !isNft -> null
         post.type == "collectible" -> "Free"
         post.price != null && post.price > 0 -> formatPriceText(post.price, post.currency)
         else -> "Free"
@@ -782,23 +789,28 @@ private fun PostDetailsSection(post: Post) {
         else -> "Centralized"
     }
 
-    // Token standard
+    // Token standard (NFT only)
     val tokenStandard = when (post.type) {
         "collectible" -> "Compressed NFT"
         "edition" -> "Metaplex Core"
         else -> null
     }
 
-    // Token ID
+    // Token ID (NFT only)
     val tokenId = when (post.type) {
         "collectible" -> post.collectibleAssetId
         "edition" -> post.masterMint
         else -> null
     }
 
-    // Mint window
+    // Mint window (NFT only)
     val mintWindowText = if (hasMintWindow) {
         "${MintWindowUtils.formatDateTime(post.mintWindowStart!!)} \u2014 ${MintWindowUtils.formatDateTime(post.mintWindowEnd!!)}"
+    } else null
+
+    // Posted date (standard posts show full date since they don't have NFT metadata)
+    val postedDateText = if (!isNft) {
+        formatFullDate(post.createdAt)
     } else null
 
     Column(
@@ -816,13 +828,14 @@ private fun PostDetailsSection(post: Post) {
         )
         Spacer(modifier = Modifier.height(DesperseSpacing.sm))
 
-        typeLabel?.let { DetailRow("Type", it) }
+        DetailRow("Type", typeLabel)
         categoriesText?.let { DetailRow("Categories", it) }
         supplyText?.let { DetailRow("Supply", it) }
-        DetailRow("Price", priceLabel)
+        priceLabel?.let { DetailRow("Price", it) }
         DetailRow("Media", mediaTypeLabel)
         fileSizeText?.let { DetailRow("File Size", it) }
         DetailRow("Storage", storageText)
+        postedDateText?.let { DetailRow("Posted", it) }
         tokenStandard?.let { DetailRow("Token Standard", it) }
         tokenId?.takeIf { it.isNotBlank() }?.let { id ->
             DetailRow(
@@ -830,8 +843,8 @@ private fun PostDetailsSection(post: Post) {
                 value = "${id.take(4)}...${id.takeLast(4)}",
                 trailingIcon = FaIcons.ArrowUpRightFromSquare,
                 onClick = {
-                    val url = "https://solscan.io/token/$id"
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    val url = explorerOption.getExplorerUrl(id)
+                    context.openInAppBrowser(url)
                 }
             )
         }
@@ -972,6 +985,20 @@ private fun formatFileSize(bytes: Long): String {
         bytes >= 1_048_576 -> "%.1f MB".format(bytes / 1_048_576.0)
         bytes >= 1_024 -> "%.1f KB".format(bytes / 1_024.0)
         else -> "$bytes B"
+    }
+}
+
+/**
+ * Format a timestamp to full date (e.g., "Mar 5, 2026")
+ */
+private fun formatFullDate(timestamp: String): String {
+    return try {
+        val instant = Instant.parse(timestamp)
+        val date = java.time.LocalDate.ofInstant(instant, java.time.ZoneId.systemDefault())
+        val month = date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
+        "$month ${date.dayOfMonth}, ${date.year}"
+    } catch (e: Exception) {
+        ""
     }
 }
 

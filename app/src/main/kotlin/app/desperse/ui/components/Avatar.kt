@@ -16,7 +16,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
-import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseSizes
 import coil.compose.AsyncImage
 
@@ -59,7 +58,7 @@ fun DesperseAvatar(
     val baseModifier = modifier
         .size(size.size)
         .clip(CircleShape)
-        .background(DesperseColors.SurfaceVariant)
+        .background(MaterialTheme.colorScheme.surfaceVariant)
 
     val finalModifier = if (showBorder) {
         baseModifier.border(borderWidth, borderColor, CircleShape)

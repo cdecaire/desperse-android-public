@@ -51,6 +51,7 @@ import app.desperse.ui.screens.create.components.MultiMediaPicker
 import app.desperse.ui.screens.create.components.NftMetadataCard
 import app.desperse.ui.screens.create.components.PermanentStorageSection
 import app.desperse.ui.screens.create.components.PostTypeSelector
+import app.desperse.ui.screens.create.components.TimedEditionSection
 import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneCollectible
@@ -354,6 +355,21 @@ fun CreateScreen(
                             onMaxSupplyToggle = { viewModel.toggleMaxSupply(it) },
                             onMaxSupplyChange = { viewModel.updateMaxSupply(it) },
                             onProtectDownloadChange = { viewModel.updateProtectDownload(it) }
+                        )
+                    }
+
+                    // 4b. Timed Edition card (edition only)
+                    FormCard {
+                        TimedEditionSection(
+                            enabled = uiState.mintWindowEnabled,
+                            startMode = uiState.mintWindowStartMode,
+                            startTime = uiState.mintWindowStartTime,
+                            durationHours = uiState.mintWindowDurationHours,
+                            isLocked = uiState.fieldLocking.areTimeWindowFieldsLocked,
+                            onToggle = { viewModel.toggleMintWindow(it) },
+                            onStartModeChange = { viewModel.updateMintWindowStartMode(it) },
+                            onStartTimeChange = { viewModel.updateMintWindowStartTime(it) },
+                            onDurationChange = { viewModel.updateMintWindowDurationHours(it) }
                         )
                     }
 

@@ -91,13 +91,13 @@ class WalletsSettingsViewModel @Inject constructor(
     val events = _events
 
     init {
-        loadWallets()
+        loadWallets(reconcile = true)
         checkMwaAvailability()
         loadLinkedAccounts()
         resumeDeeplinkIfNeeded()
     }
 
-    fun loadWallets() {
+    fun loadWallets(reconcile: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             when (val result = walletRepository.getUserWallets()) {
@@ -105,11 +105,55 @@ class WalletsSettingsViewModel @Inject constructor(
                     val walletInfos = result.data.map { it.toWalletInfo() }
                     _uiState.update { it.copy(wallets = walletInfos, isLoading = false) }
                     Log.d(TAG, "Loaded ${walletInfos.size} wallets from server")
+                    if (reconcile) reconcilePrivyWallets(walletInfos)
                 }
                 is ApiResult.Error -> {
                     Log.e(TAG, "Failed to load wallets: ${result.message}")
                     _uiState.update { it.copy(isLoading = false) }
                 }
+            }
+        }
+    }
+
+    /**
+     * Compare Privy-linked external wallets against DB wallets.
+     * If any are in Privy but missing from DB, register them and reload.
+     */
+    private suspend fun reconcilePrivyWallets(dbWallets: List<WalletInfo>) {
+        val privyExternalWallets = privyAuthManager.getLinkedAccounts()
+            .filterIsInstance<LinkedAccount.ExternalWalletAccount>()
+
+        if (privyExternalWallets.isEmpty()) return
+
+        val dbAddresses = dbWallets.map { it.address }.toSet()
+        val missing = privyExternalWallets.filter { it.address !in dbAddresses }
+
+        if (missing.isEmpty()) return
+
+        Log.d(TAG, "Reconciling ${missing.size} Privy wallet(s) missing from DB")
+        var registered = 0
+        for (wallet in missing) {
+            val label = wallet.walletClientType?.replaceFirstChar { it.uppercase() }?.let { "$it Wallet" }
+                ?: "External Wallet"
+            val error = walletRepository.ensureWalletExists(
+                wallet.address, "external", wallet.connectorType ?: "unknown", label
+            )
+            if (error == null) {
+                registered++
+                Log.d(TAG, "Reconciled wallet ${wallet.address.take(8)}...")
+            } else {
+                Log.w(TAG, "Failed to reconcile wallet ${wallet.address.take(8)}...: $error")
+            }
+        }
+
+        if (registered > 0) {
+            Log.d(TAG, "Reconciled $registered wallet(s), reloading")
+            when (val result = walletRepository.getUserWallets()) {
+                is ApiResult.Success -> {
+                    val walletInfos = result.data.map { it.toWalletInfo() }
+                    _uiState.update { it.copy(wallets = walletInfos) }
+                }
+                is ApiResult.Error -> Log.w(TAG, "Failed to reload after reconciliation: ${result.message}")
             }
         }
     }
@@ -229,6 +273,65 @@ class WalletsSettingsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Check if a wallet address is already linked to the current Privy user.
+     */
+    private fun isWalletAlreadyLinkedToCurrentUser(address: String): Boolean {
+        return privyAuthManager.getLinkedAccounts()
+            .filterIsInstance<LinkedAccount.ExternalWalletAccount>()
+            .any { it.address == address }
+    }
+
+    /**
+     * Check if a Privy link error is because the wallet is already linked to the current user.
+     */
+    private fun isAlreadyLinkedError(e: Throwable, address: String): Boolean {
+        val message = e.message ?: return false
+        if ("linked_to_another_user" in message || "already linked" in message.lowercase()) {
+            return isWalletAlreadyLinkedToCurrentUser(address)
+        }
+        return false
+    }
+
+    /**
+     * Complete the wallet link: call Privy SIWS, handle already-linked, register in DB, reload.
+     * Shared by MWA, deeplink, and deeplink-resume flows.
+     */
+    private suspend fun completeWalletLink(
+        address: String,
+        message: String,
+        signatureBase64: String,
+        walletClientType: String?,
+        connector: String,
+        label: String
+    ) {
+        val privyResult = privyAuthManager.linkWithSiws(
+            walletAddress = address,
+            message = message,
+            signatureBase64 = signatureBase64,
+            walletClientType = walletClientType ?: "unknown"
+        )
+
+        if (privyResult.isFailure) {
+            val err = privyResult.exceptionOrNull()!!
+            if (isAlreadyLinkedError(err, address)) {
+                Log.d(TAG, "Wallet already linked to current user in Privy, registering in DB")
+            } else {
+                throw err
+            }
+        }
+
+        val dbError = walletRepository.ensureWalletExists(address, "external", connector, label)
+
+        loadLinkedAccounts()
+        loadWallets()
+        if (dbError == null) {
+            _events.emit(Event.Success("Wallet linked successfully"))
+        } else {
+            _events.emit(Event.Error("Linked in Privy but server failed: $dbError"))
+        }
+    }
+
     // ========================================================================
     // Wallet Linking
     // ========================================================================
@@ -305,30 +408,27 @@ class WalletsSettingsViewModel @Inject constructor(
 
                 result.fold(
                     onSuccess = { (authResult, signatureBytes) ->
+                        // Check if wallet is already linked (DB + Privy)
+                        val alreadyInDb = _uiState.value.wallets.any { it.address == authResult.address }
+                        val alreadyInPrivy = isWalletAlreadyLinkedToCurrentUser(authResult.address)
+                        if (alreadyInDb && alreadyInPrivy) {
+                            _events.emit(Event.Error("This wallet is already linked"))
+                            return@fold
+                        }
+
                         val signatureBase64 = Base64.encodeToString(signatureBytes, Base64.NO_WRAP)
                         val message = siwsMessage
                             ?: throw IllegalStateException("SIWS message was not captured")
+                        val label = authResult.walletLabel ?: "${wallet.displayName} Wallet"
 
-                        privyAuthManager.linkWithSiws(
-                            walletAddress = authResult.address,
+                        completeWalletLink(
+                            address = authResult.address,
                             message = message,
                             signatureBase64 = signatureBase64,
-                            walletClientType = authResult.walletClientType
-                        ).getOrThrow()
-
-                        // Register wallet in backend DB
-                        val label = authResult.walletLabel ?: "${wallet.displayName} Wallet"
-                        val dbError = walletRepository.ensureWalletExists(
-                            authResult.address, "external", "mwa", label
+                            walletClientType = authResult.walletClientType,
+                            connector = "mwa",
+                            label = label
                         )
-
-                        loadLinkedAccounts()
-                        loadWallets()
-                        if (dbError == null) {
-                            _events.emit(Event.Success("Wallet linked successfully"))
-                        } else {
-                            _events.emit(Event.Error("Linked in Privy but server failed: $dbError"))
-                        }
                     },
                     onFailure = { error ->
                         Log.e(TAG, "MWA wallet linking failed", error)
@@ -403,29 +503,20 @@ class WalletsSettingsViewModel @Inject constructor(
                                 privyAuthManager.generateSiwsMessage(address)
 
                                 Log.d(TAG, "Resuming: linking wallet via Privy SIWS...")
-                                privyAuthManager.linkWithSiws(
-                                    walletAddress = address,
-                                    message = message,
-                                    signatureBase64 = signatureBase64,
-                                    walletClientType = walletClientType
-                                ).getOrThrow()
-
-                                val label = when (deeplinkWalletManager.getConnectedWalletClientType()) {
+                                val label = when (walletClientType) {
                                     "solflare" -> "Solflare Wallet"
                                     "phantom" -> "Phantom Wallet"
                                     else -> "External Wallet"
                                 }
-                                val dbError = walletRepository.ensureWalletExists(
-                                    address, "external", "deeplink", label
-                                )
 
-                                loadLinkedAccounts()
-                                loadWallets()
-                                if (dbError == null) {
-                                    _events.emit(Event.Success("Wallet linked successfully"))
-                                } else {
-                                    _events.emit(Event.Error("Linked in Privy but server failed: $dbError"))
-                                }
+                                completeWalletLink(
+                                    address = address,
+                                    message = message,
+                                    signatureBase64 = signatureBase64,
+                                    walletClientType = walletClientType,
+                                    connector = "deeplink",
+                                    label = label
+                                )
                             } else {
                                 val reason = deeplinkWalletManager.lastError ?: "Missing data after process restart"
                                 _events.emit(Event.Error("Signing failed: $reason"))
@@ -489,6 +580,16 @@ class WalletsSettingsViewModel @Inject constructor(
 
                 Log.d(TAG, "Connected to ${address.take(8)}..., generating SIWS message")
 
+                // Check if wallet is already linked (DB + Privy)
+                val alreadyInDb = _uiState.value.wallets.any { it.address == address }
+                val alreadyInPrivy = isWalletAlreadyLinkedToCurrentUser(address)
+                if (alreadyInDb && alreadyInPrivy) {
+                    _events.emit(Event.Error("This wallet is already linked"))
+                    deeplinkWalletManager.clearSession()
+                    _uiState.update { it.copy(walletLinkingInProgress = false) }
+                    return@launch
+                }
+
                 // Step 2: Generate SIWS message
                 val messageResult = privyAuthManager.generateSiwsMessage(address)
                 val message = messageResult.getOrElse { error ->
@@ -532,28 +633,19 @@ class WalletsSettingsViewModel @Inject constructor(
                 val signatureBase64 = Base64.encodeToString(signatureBytes, Base64.NO_WRAP)
 
                 Log.d(TAG, "Linking wallet via Privy SIWS...")
-                privyAuthManager.linkWithSiws(
-                    walletAddress = address,
+                val label = "${wallet.displayName} Wallet"
+                val walletClientType = deeplinkWalletManager.getConnectedWalletClientType()
+
+                completeWalletLink(
+                    address = address,
                     message = message,
                     signatureBase64 = signatureBase64,
-                    walletClientType = deeplinkWalletManager.getConnectedWalletClientType()
-                ).getOrThrow()
-
-                val label = "${wallet.displayName} Wallet"
-                val dbError = walletRepository.ensureWalletExists(
-                    address, "external", "deeplink", label
+                    walletClientType = walletClientType,
+                    connector = "deeplink",
+                    label = label
                 )
-                Log.d(TAG, "ensureWalletExists error: $dbError")
 
                 deeplinkWalletManager.clearSession()
-
-                loadLinkedAccounts()
-                loadWallets()
-                if (dbError == null) {
-                    _events.emit(Event.Success("Wallet linked successfully"))
-                } else {
-                    _events.emit(Event.Error("Linked in Privy but server failed: $dbError"))
-                }
             } catch (e: Exception) {
                 Log.e(TAG, "Deeplink wallet linking exception", e)
                 deeplinkWalletManager.clearSession()

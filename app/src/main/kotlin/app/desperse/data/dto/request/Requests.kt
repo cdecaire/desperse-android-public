@@ -56,7 +56,12 @@ data class CreatePostRequest(
     val mediaMimeType: String? = null,
     val mediaFileSize: Long? = null,
     val storageType: String? = null, // "centralized" or "arweave"
-    val isDev: Boolean? = null
+    val isDev: Boolean? = null,
+    // Timed edition mint window
+    val mintWindowEnabled: Boolean? = null,
+    val mintWindowStartMode: String? = null, // "now" | "scheduled"
+    val mintWindowStartTime: String? = null, // ISO datetime
+    val mintWindowDurationHours: Double? = null
 )
 
 @Serializable
@@ -80,7 +85,12 @@ data class UpdatePostRequest(
     val isMutable: Boolean? = null,
     val price: Long? = null,
     val currency: String? = null,
-    val maxSupply: Int? = null
+    val maxSupply: Int? = null,
+    // Timed edition mint window
+    val mintWindowEnabled: Boolean? = null,
+    val mintWindowStartMode: String? = null,
+    val mintWindowStartTime: String? = null,
+    val mintWindowDurationHours: Double? = null
 )
 
 @Serializable

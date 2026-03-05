@@ -50,7 +50,9 @@ class WalletRepository @Inject constructor(
                 null
             }
             is ApiResult.Error -> {
-                if (result.code == ErrorCode.DUPLICATE_WALLET || result.httpCode == 409) {
+                val isDuplicate = result.code == ErrorCode.DUPLICATE_WALLET
+                    || result.httpCode == 409
+                if (isDuplicate) {
                     Log.d(TAG, "Wallet already registered: $address (type=$type)")
                     null
                 } else {

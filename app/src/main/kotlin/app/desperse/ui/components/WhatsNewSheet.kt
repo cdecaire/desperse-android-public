@@ -44,9 +44,13 @@ val changelogs = mapOf(
     7 to WhatsNewContent(
         version = "1.0.6",
         items = listOf(
+            "Timed editions with configurable mint windows",
+            "Reusable comment sheet for feed and detail views",
+            "Post details section now shown for all post types",
+            "Wallet reconciliation syncs Privy-linked wallets automatically",
+            "Token ID links open in preferred explorer via in-app browser",
             "Permanent storage on Arweave for editions",
-            "Manage Arweave storage credits in settings",
-            "Improved analytics and notification tracking",
+            "Improved ProGuard rules for release builds",
         )
     ),
     6 to WhatsNewContent(

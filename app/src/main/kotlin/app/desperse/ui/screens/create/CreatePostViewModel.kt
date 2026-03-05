@@ -18,6 +18,7 @@ import app.desperse.data.model.Post
 import app.desperse.data.repository.ArweaveRepository
 import app.desperse.data.repository.PostRepository
 import app.desperse.core.wallet.TransactionWalletManager
+import app.desperse.ui.util.MintWindowUtils
 import app.desperse.data.upload.MediaUploadService
 import app.desperse.data.upload.UploadState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -70,6 +71,12 @@ data class CreatePostUiState(
     val maxSupplyDisplay: String = "",
     val protectDownload: Boolean = false,
 
+    // Timed edition mint window
+    val mintWindowEnabled: Boolean = false,
+    val mintWindowStartMode: String = "now", // "now" | "scheduled"
+    val mintWindowStartTime: Long? = null, // epoch millis for scheduled start
+    val mintWindowDurationHours: Double? = null,
+
     // Arweave permanent storage
     val storageType: String = "centralized", // "centralized" or "arweave"
     val arweaveFundingState: ArweaveFundingState = ArweaveFundingState.NotChecked,
@@ -98,7 +105,8 @@ data class FieldLocking(
     val areNftFieldsEditable: Boolean = true,
     val isMutabilityEditable: Boolean = true,
     val arePricingEditable: Boolean = true,
-    val isStorageTypeLocked: Boolean = false
+    val isStorageTypeLocked: Boolean = false,
+    val areTimeWindowFieldsLocked: Boolean = false
 )
 
 sealed class ArweaveFundingState {
@@ -360,6 +368,28 @@ class CreatePostViewModel @Inject constructor(
         _uiState.update { it.copy(protectDownload = protect) }
     }
 
+    // === Timed Edition ===
+
+    fun toggleMintWindow(enabled: Boolean) {
+        if (_uiState.value.fieldLocking.areTimeWindowFieldsLocked) return
+        _uiState.update { it.copy(mintWindowEnabled = enabled) }
+    }
+
+    fun updateMintWindowStartMode(mode: String) {
+        if (_uiState.value.fieldLocking.areTimeWindowFieldsLocked) return
+        _uiState.update { it.copy(mintWindowStartMode = mode) }
+    }
+
+    fun updateMintWindowStartTime(millis: Long) {
+        if (_uiState.value.fieldLocking.areTimeWindowFieldsLocked) return
+        _uiState.update { it.copy(mintWindowStartTime = millis) }
+    }
+
+    fun updateMintWindowDurationHours(hours: Double?) {
+        if (_uiState.value.fieldLocking.areTimeWindowFieldsLocked) return
+        _uiState.update { it.copy(mintWindowDurationHours = hours) }
+    }
+
     // === Arweave Storage ===
 
     fun updateStorageType(type: String) {
@@ -528,6 +558,14 @@ class CreatePostViewModel @Inject constructor(
                     (it * 100).toInt() // 5% = 500 basis points
                 }
 
+                // Mint window fields (edition only)
+                val mintWindowEnabled = if (state.postType == "edition" && state.mintWindowEnabled) true else null
+                val mintWindowStartMode = if (mintWindowEnabled == true) state.mintWindowStartMode else null
+                val mintWindowStartTime = if (mintWindowEnabled == true && state.mintWindowStartMode == "scheduled" && state.mintWindowStartTime != null) {
+                    MintWindowUtils.epochMsToIso(state.mintWindowStartTime)
+                } else null
+                val mintWindowDurationHours = if (mintWindowEnabled == true) state.mintWindowDurationHours else null
+
                 val request = CreatePostRequest(
                     mediaUrl = mediaUrl,
                     coverUrl = state.coverMedia?.url,
@@ -547,7 +585,11 @@ class CreatePostViewModel @Inject constructor(
                     mediaMimeType = firstItem.mimeType.ifBlank { null },
                     mediaFileSize = firstItem.fileSize.takeIf { it > 0 },
                     storageType = if (state.postType == "edition" && state.storageType == "arweave") "arweave" else null,
-                    isDev = if (BuildConfig.DEBUG) true else null
+                    isDev = if (BuildConfig.DEBUG) true else null,
+                    mintWindowEnabled = mintWindowEnabled,
+                    mintWindowStartMode = mintWindowStartMode,
+                    mintWindowStartTime = mintWindowStartTime,
+                    mintWindowDurationHours = mintWindowDurationHours
                 )
 
                 val result = postRepository.createPost(request)
@@ -591,6 +633,15 @@ class CreatePostViewModel @Inject constructor(
                     state.royalties.toDoubleOrNull()?.let { (it * 100).toInt() }
                 } else null
 
+                // Mint window fields (edition only, when not locked)
+                // null = don't modify, false = explicitly disable, true = enable
+                val mintWindowEnabled = if (isEdition && !state.fieldLocking.areTimeWindowFieldsLocked) state.mintWindowEnabled else null
+                val mintWindowStartMode = if (mintWindowEnabled == true) state.mintWindowStartMode else null
+                val mintWindowStartTimeIso = if (mintWindowEnabled == true && state.mintWindowStartMode == "scheduled" && state.mintWindowStartTime != null) {
+                    MintWindowUtils.epochMsToIso(state.mintWindowStartTime)
+                } else null
+                val mintWindowDuration = if (mintWindowEnabled == true) state.mintWindowDurationHours else null
+
                 val request = UpdatePostRequest(
                     caption = state.caption.ifBlank { null },
                     categories = state.selectedCategories.ifEmpty { null },
@@ -601,7 +652,11 @@ class CreatePostViewModel @Inject constructor(
                     isMutable = if (isNftType && state.fieldLocking.isMutabilityEditable) state.isMutable else null,
                     price = priceBaseUnits,
                     currency = if (isEdition && state.fieldLocking.arePricingEditable) state.currency else null,
-                    maxSupply = maxSupply
+                    maxSupply = maxSupply,
+                    mintWindowEnabled = mintWindowEnabled,
+                    mintWindowStartMode = mintWindowStartMode,
+                    mintWindowStartTime = mintWindowStartTimeIso,
+                    mintWindowDurationHours = mintWindowDuration
                 )
 
                 val result = postRepository.updatePost(postId, request)
@@ -663,6 +718,14 @@ class CreatePostViewModel @Inject constructor(
                 )
             }
 
+            // Determine mint window state from post
+            val mintWindowStartMs = post.mintWindowStart?.let { MintWindowUtils.parseIsoToEpochMs(it) }
+            val mintWindowEndMs = post.mintWindowEnd?.let { MintWindowUtils.parseIsoToEpochMs(it) }
+            val hasMintWindow = mintWindowStartMs != null && mintWindowEndMs != null
+            val mintWindowDuration = if (mintWindowStartMs != null && mintWindowEndMs != null) {
+                (mintWindowEndMs - mintWindowStartMs).toDouble() / 3600_000.0
+            } else null
+
             state.copy(
                 postType = post.type,
                 caption = post.caption ?: "",
@@ -672,7 +735,11 @@ class CreatePostViewModel @Inject constructor(
                 maxSupplyEnabled = post.maxSupply != null,
                 maxSupplyDisplay = post.maxSupply?.toString() ?: "",
                 mediaItems = items,
-                storageType = post.storageType ?: "centralized"
+                storageType = post.storageType ?: "centralized",
+                mintWindowEnabled = hasMintWindow,
+                mintWindowStartMode = if (hasMintWindow) "scheduled" else "now",
+                mintWindowStartTime = mintWindowStartMs,
+                mintWindowDurationHours = mintWindowDuration
             )
         }
     }
@@ -701,7 +768,8 @@ class CreatePostViewModel @Inject constructor(
                 editState.hasConfirmedPurchases -> false
                 else -> true
             },
-            isStorageTypeLocked = state.storageType == "arweave" // Can't downgrade from arweave
+            isStorageTypeLocked = state.storageType == "arweave", // Can't downgrade from arweave
+            areTimeWindowFieldsLocked = editState.areTimeWindowFieldsLocked
         )
 
         _uiState.update { it.copy(editState = editState, fieldLocking = locking) }

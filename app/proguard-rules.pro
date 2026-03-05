@@ -2,9 +2,24 @@
 
 # === APP-SPECIFIC ===
 
-# Keep serializable DTOs and models (safety net for JSON deserialization)
+# Preserve generic type signatures — required by Retrofit and kotlinx.serialization
+-keepattributes Signature, *Annotation*
+
+# Keep the Retrofit API interface with full method signatures
+-keep class app.desperse.core.network.DesperseApi { *; }
+
+# Keep all serializable classes (DTOs, models, network envelope, wallet types)
 -keep class app.desperse.data.dto.** { *; }
 -keep class app.desperse.data.model.** { *; }
+-keep class app.desperse.core.network.ApiEnvelope { *; }
+-keep class app.desperse.core.network.ApiError { *; }
+-keep class app.desperse.core.network.ApiMeta { *; }
+-keep class app.desperse.core.network.ErrorEnvelope { *; }
+-keep class app.desperse.core.network.ErrorCode { *; }
+-keep class app.desperse.core.wallet.AddWalletResponse { *; }
+-keep class app.desperse.core.wallet.UserWalletDto { *; }
+-keep class app.desperse.core.wallet.UserWalletsResponse { *; }
+-keep class app.desperse.core.arweave.** { *; }
 
 # === PRIVY SDK (ships minimal rules, needs protection) ===
 -keep class io.privy.** { *; }

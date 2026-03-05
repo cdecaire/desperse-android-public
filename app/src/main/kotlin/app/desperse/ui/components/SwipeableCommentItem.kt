@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
@@ -14,16 +13,11 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.desperse.data.dto.response.Comment
-import app.desperse.ui.components.media.ImageContext
-import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSpacing
-import coil.compose.AsyncImage
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -114,28 +108,20 @@ private fun CommentContent(
     onMentionClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val optimizedAvatarUrl = remember(comment.user.avatarUrl) {
-        comment.user.avatarUrl?.let {
-            ImageOptimization.getOptimizedUrlForContext(it, ImageContext.AVATAR)
-        }
-    }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm)
     ) {
         // Avatar
-        AsyncImage(
-            model = optimizedAvatarUrl,
-            contentDescription = comment.user.displayName ?: comment.user.slug,
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .clickable(onClick = onUserClick),
-            contentScale = ContentScale.Crop
-        )
+        Box(modifier = Modifier.clickable(onClick = onUserClick)) {
+            DesperseAvatar(
+                imageUrl = comment.user.avatarUrl,
+                contentDescription = comment.user.displayName ?: comment.user.slug,
+                identityInput = comment.user.walletAddress ?: comment.user.slug,
+                size = AvatarSize.Small
+            )
+        }
 
         Spacer(modifier = Modifier.width(DesperseSpacing.sm))
 

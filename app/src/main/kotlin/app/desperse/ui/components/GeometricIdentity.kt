@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.desperse.ui.theme.DesperseColors
+import androidx.compose.material3.MaterialTheme
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -402,7 +402,7 @@ fun GeometricAvatar(
     input: String,
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
-    color: Color = DesperseColors.Zinc400
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     val composition = remember(input) { generateAvatarComposition(input) }
     Canvas(
@@ -438,7 +438,7 @@ fun GeometricBanner(
     input: String,
     modifier: Modifier = Modifier,
     height: Dp = 160.dp,
-    color: Color = DesperseColors.Zinc400
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     val composition = remember(input) { generateBannerComposition(input) }
     Canvas(

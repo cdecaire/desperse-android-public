@@ -570,7 +570,11 @@ data class EditStateResult(
     val areNftFieldsLocked: Boolean = false,
     val canUpdateOnChain: Boolean = false,
     val onchainSyncStatus: String? = null,
-    val lastOnchainSyncAt: String? = null
+    val lastOnchainSyncAt: String? = null,
+    // Timed edition
+    val mintWindowStart: String? = null,
+    val mintWindowEnd: String? = null,
+    val areTimeWindowFieldsLocked: Boolean = false
 )
 
 // === Tips ===

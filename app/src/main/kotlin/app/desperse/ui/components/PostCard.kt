@@ -36,6 +36,8 @@ import app.desperse.ui.theme.DesperseComponentSpacing
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.util.MintWindowPhase
+import app.desperse.ui.util.MintWindowUtils
 
 /**
  * Post Card Component - matches web app design
@@ -64,6 +66,10 @@ fun PostCard(
     purchaseState: PurchaseState = PurchaseState.Idle,
     modifier: Modifier = Modifier
 ) {
+    val mintPhase = remember(post.mintWindowStart, post.mintWindowEnd) {
+        MintWindowUtils.getMintWindowPhase(post.mintWindowStart, post.mintWindowEnd)
+    }
+
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
@@ -82,12 +88,14 @@ fun PostCard(
         // Full-width media
         PostCardMedia(
             post = post,
+            mintPhase = mintPhase,
             onClick = onClick
         )
 
         // Actions row
         PostCardActions(
             post = post,
+            mintPhase = mintPhase,
             onLikeClick = onLikeClick,
             onCommentClick = onCommentClick,
             onCollectClick = onCollectClick,
@@ -112,12 +120,13 @@ fun PostCard(
 }
 
 /**
- * Get the edition label based on maxSupply
- * - null/0 → "Open Edition"
+ * Get the edition label based on maxSupply and mint window
+ * - null/0 → "Open Edition" / "Timed Edition"
  * - 1 → "1/1"
- * - >1 → "Limited Edition"
+ * - >1 → "Limited Edition" / "Timed Edition"
  */
-private fun getEditionLabel(maxSupply: Int?): String {
+private fun getEditionLabel(maxSupply: Int?, hasMintWindow: Boolean = false): String {
+    if (hasMintWindow) return "Timed Edition"
     return when {
         maxSupply == null || maxSupply == 0 -> "Open Edition"
         maxSupply == 1 -> "1/1"
@@ -140,9 +149,10 @@ private fun getPostTypeIcon(post: Post): String? {
  * Get the type label for display
  */
 private fun getPostTypeLabel(post: Post): String? {
+    val hasMintWindow = post.mintWindowStart != null && post.mintWindowEnd != null
     return when (post.type) {
         "collectible" -> "Collectible"
-        "edition" -> getEditionLabel(post.maxSupply)
+        "edition" -> getEditionLabel(post.maxSupply, hasMintWindow)
         else -> null
     }
 }
@@ -308,6 +318,7 @@ private fun PostCardHeader(
 @Composable
 private fun PostCardMedia(
     post: Post,
+    mintPhase: MintWindowPhase,
     onClick: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxWidth()) {
@@ -318,9 +329,10 @@ private fun PostCardMedia(
         )
 
         // Price pill overlay for editions (top-right position like web)
-        // Always show price, even if already purchased
+        // Prepend mint window status for timed editions
         if (post.type == "edition") {
-            val priceText = formatPriceText(post.price, post.currency)
+            val basePrice = formatPriceText(post.price, post.currency)
+            val priceText = if (mintPhase is MintWindowPhase.None) basePrice else "${mintPhase.label} · $basePrice"
             MediaPill(
                 text = priceText,
                 modifier = Modifier
@@ -377,6 +389,7 @@ private fun formatPriceText(price: Double?, currency: String?): String {
 @Composable
 private fun PostCardActions(
     post: Post,
+    mintPhase: MintWindowPhase = MintWindowPhase.None,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
     onCollectClick: () -> Unit,
@@ -439,6 +452,7 @@ private fun PostCardActions(
                     maxSupply = post.maxSupply,
                     isCollected = post.isCollected,
                     purchaseState = purchaseState,
+                    mintPhase = mintPhase,
                     onClick = onCollectClick
                 )
             }
@@ -499,10 +513,12 @@ private fun BuyButton(
     maxSupply: Int?,
     isCollected: Boolean,
     purchaseState: PurchaseState = PurchaseState.Idle,
+    mintPhase: MintWindowPhase = MintWindowPhase.None,
     onClick: () -> Unit
 ) {
     val toneColor = DesperseTones.Edition
     val isSoldOut = maxSupply != null && maxSupply > 0 && currentSupply >= maxSupply
+    val isMintWindowBlocked = mintPhase is MintWindowPhase.Scheduled || mintPhase is MintWindowPhase.Ended
 
     // Check purchase flow states
     val isInProgress = purchaseState is PurchaseState.Preparing ||
@@ -532,11 +548,11 @@ private fun BuyButton(
     val contentColor = when {
         isOwned -> toneColor
         isFailed -> MaterialTheme.colorScheme.error
-        isSoldOut -> MaterialTheme.colorScheme.onSurfaceVariant
+        isSoldOut || isMintWindowBlocked -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    val isClickable = !isSoldOut && !isOwned && !isInProgress
+    val isClickable = !isSoldOut && !isOwned && !isInProgress && !isMintWindowBlocked
 
     Row(
         modifier = Modifier
