@@ -2,7 +2,6 @@ package app.desperse.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,11 +20,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +45,7 @@ import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseSpacing
+import app.desperse.ui.theme.DesperseTones
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
@@ -79,7 +77,6 @@ fun TipSheet(
     onSendTip: (Double) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
 
     var selectedPreset by remember { mutableStateOf(defaultAmount ?: PRESET_AMOUNTS[0]) }
@@ -108,30 +105,11 @@ fun TipSheet(
         }
     }
 
-    ModalBottomSheet(
+    DesperseBottomSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
         onDismissRequest = {
             if (!isInProgress) onDismiss()
-        },
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = DesperseSpacing.md),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(32.dp)
-                        .height(4.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(2.dp)
-                        )
-                )
-            }
         }
     ) {
         Column(
@@ -200,7 +178,7 @@ fun TipSheet(
                     FaIcon(
                         icon = FaIcons.CircleCheck,
                         size = 48.dp,
-                        tint = Color(0xFF4CAF50),
+                        tint = DesperseTones.Success,
                         style = FaIconStyle.Solid
                     )
                     Spacer(modifier = Modifier.height(DesperseSpacing.md))
@@ -208,7 +186,7 @@ fun TipSheet(
                         text = "Tip sent!",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
+                        color = DesperseTones.Success
                     )
                 }
                 return@Column

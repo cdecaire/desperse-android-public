@@ -12,6 +12,7 @@ import app.desperse.data.dto.request.SubmitSignedTxRequest
 import app.desperse.data.dto.request.UpdatePostRequest
 import app.desperse.data.dto.request.MediaUploadRequest
 import app.desperse.data.dto.request.UploadTokenRequest
+import app.desperse.data.dto.response.FollowUser
 import app.desperse.data.dto.response.MediaUploadResult
 import app.desperse.data.dto.response.BuyEditionResult
 import app.desperse.data.dto.response.CollectResult
@@ -88,6 +89,25 @@ class PostRepository @Inject constructor(
     suspend fun checkCollectionStatus(collectionId: String): Result<CollectionStatusResult> {
         return when (val result = safeApiCall { api.checkCollectionStatus(collectionId) }) {
             is ApiResult.Success -> Result.success(result.data)
+            is ApiResult.Error -> Result.failure(Exception(result.message))
+        }
+    }
+
+    data class CollectorsPage(
+        val users: List<FollowUser>,
+        val hasMore: Boolean,
+        val nextCursor: String?
+    )
+
+    suspend fun getPostCollectors(postId: String, cursor: String? = null, limit: Int = 50): Result<CollectorsPage> {
+        return when (val result = safeApiCall { api.getPostCollectors(postId, cursor, limit) }) {
+            is ApiResult.Success -> Result.success(
+                CollectorsPage(
+                    users = result.data.users,
+                    hasMore = result.meta?.hasMore ?: false,
+                    nextCursor = result.meta?.nextCursor
+                )
+            )
             is ApiResult.Error -> Result.failure(Exception(result.message))
         }
     }

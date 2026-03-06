@@ -67,7 +67,8 @@ fun MentionTextField(
         imeAction = ImeAction.Default
     ),
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    trailingIcon: @Composable (() -> Unit)? = null
+    trailingIcon: @Composable (() -> Unit)? = null,
+    onFocusChanged: ((Boolean) -> Unit)? = null
 ) {
     var textFieldValue by remember { mutableStateOf(TextFieldValue(value)) }
     var showAutocomplete by remember { mutableStateOf(false) }
@@ -151,7 +152,10 @@ fun MentionTextField(
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focusRequester)
-                    .onFocusChanged { isFocused = it.isFocused },
+                    .onFocusChanged {
+                        isFocused = it.isFocused
+                        onFocusChanged?.invoke(it.isFocused)
+                    },
                 enabled = enabled,
                 textStyle = textStyle,
                 keyboardOptions = keyboardOptions,

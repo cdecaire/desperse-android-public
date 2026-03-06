@@ -1,5 +1,6 @@
 package app.desperse.ui.components
 
+import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -158,27 +159,3 @@ private fun CommentContent(
     }
 }
 
-/**
- * Format a timestamp as relative time (e.g., "2m", "3h", "1d")
- */
-private fun formatRelativeTime(isoTimestamp: String): String {
-    return try {
-        val instant = Instant.parse(isoTimestamp)
-        val now = Instant.now()
-
-        val minutes = ChronoUnit.MINUTES.between(instant, now)
-        val hours = ChronoUnit.HOURS.between(instant, now)
-        val days = ChronoUnit.DAYS.between(instant, now)
-
-        when {
-            minutes < 1 -> "now"
-            minutes < 60 -> "${minutes}m"
-            hours < 24 -> "${hours}h"
-            days < 7 -> "${days}d"
-            days < 365 -> "${days / 7}w"
-            else -> "${days / 365}y"
-        }
-    } catch (e: Exception) {
-        ""
-    }
-}

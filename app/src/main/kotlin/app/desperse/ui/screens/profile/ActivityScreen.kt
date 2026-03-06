@@ -1,5 +1,6 @@
 package app.desperse.ui.screens.profile
 
+import app.desperse.ui.theme.DesperseTones
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,9 +47,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import app.desperse.data.dto.response.ActivityItem
 import app.desperse.ui.components.ButtonVariant
 import app.desperse.ui.components.DesperseTextButton
+import app.desperse.ui.components.EmptyState
+import app.desperse.ui.components.ErrorState
+import app.desperse.ui.components.LoadingMoreIndicator
+import app.desperse.ui.components.LoadingState
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.components.media.ImageContext
+import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSpacing
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -97,71 +105,23 @@ fun ActivityScreen(
     ) { padding ->
         when {
             uiState.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                LoadingState(modifier = Modifier.padding(padding))
             }
 
             uiState.error != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
-                    ) {
-                        FaIcon(
-                            icon = FaIcons.TriangleExclamation,
-                            size = 48.dp,
-                            tint = MaterialTheme.colorScheme.error,
-                            style = FaIconStyle.Solid
-                        )
-                        Text(
-                            text = uiState.error!!,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        DesperseTextButton(
-                            text = "Retry",
-                            onClick = { viewModel.load() },
-                            variant = ButtonVariant.Default
-                        )
-                    }
-                }
+                ErrorState(
+                    message = uiState.error!!,
+                    onRetry = { viewModel.load() },
+                    modifier = Modifier.padding(padding)
+                )
             }
 
             uiState.activities.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
-                    ) {
-                        FaIcon(
-                            icon = FaIcons.History,
-                            size = 48.dp,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            style = FaIconStyle.Regular
-                        )
-                        Text(
-                            text = "No activity yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                EmptyState(
+                    icon = FaIcons.History,
+                    message = "No activity yet",
+                    modifier = Modifier.padding(padding)
+                )
             }
 
             else -> {
@@ -174,34 +134,26 @@ fun ActivityScreen(
                 ) {
                     items(
                         items = uiState.activities,
-                        key = { it.id }
+                        key = { it.id },
+                        contentType = { "activity" }
                     ) { activity ->
-                        ActivityListItem(
-                            activity = activity,
-                            onClick = {
+                        val onClickStable = remember(activity.id) {
+                            {
                                 if (activity.type == "tipped" && activity.tip != null) {
                                     onProfileClick(activity.tip.recipient.slug)
                                 } else if (activity.post != null) {
                                     onPostClick(activity.post.id)
                                 }
                             }
+                        }
+                        ActivityListItem(
+                            activity = activity,
+                            onClick = onClickStable
                         )
                     }
 
                     if (uiState.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(DesperseSpacing.lg),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            }
-                        }
+                        item { LoadingMoreIndicator() }
                     }
                 }
             }
@@ -235,11 +187,17 @@ private fun ActivityListItem(
                 contentAlignment = Alignment.Center
             ) {
                 if (avatarUrl != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(avatarUrl)
+                    val optimizedAvatar = remember(avatarUrl) {
+                        ImageOptimization.getOptimizedUrlForContext(avatarUrl, ImageContext.AVATAR)
+                    }
+                    val avatarRequest = remember(optimizedAvatar) {
+                        ImageRequest.Builder(context)
+                            .data(optimizedAvatar)
                             .crossfade(true)
-                            .build(),
+                            .build()
+                    }
+                    AsyncImage(
+                        model = avatarRequest,
                         contentDescription = activity.tip.recipient.displayName,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -263,11 +221,17 @@ private fun ActivityListItem(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 if (thumbnailUrl != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(thumbnailUrl)
+                    val optimizedThumb = remember(thumbnailUrl) {
+                        ImageOptimization.getOptimizedUrlForContext(thumbnailUrl, ImageContext.WALLET_ACTIVITY)
+                    }
+                    val thumbRequest = remember(optimizedThumb) {
+                        ImageRequest.Builder(context)
+                            .data(optimizedThumb)
                             .crossfade(true)
-                            .build(),
+                            .build()
+                    }
+                    AsyncImage(
+                        model = thumbRequest,
                         contentDescription = activity.post?.caption,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -315,7 +279,7 @@ private fun ActivityListItem(
                         text = "Tipped",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFFF59E0B)
+                        color = DesperseTones.Warning
                     )
                 }
                 Text(
@@ -327,11 +291,17 @@ private fun ActivityListItem(
                 // Post-based: author info with activity type
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (activity.post.user.avatarUrl != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(activity.post.user.avatarUrl)
+                        val optimizedAuthorAvatar = remember(activity.post.user.avatarUrl) {
+                            ImageOptimization.getOptimizedUrlForContext(activity.post.user.avatarUrl, ImageContext.AVATAR)
+                        }
+                        val authorAvatarRequest = remember(optimizedAuthorAvatar) {
+                            ImageRequest.Builder(context)
+                                .data(optimizedAuthorAvatar)
                                 .crossfade(true)
-                                .build(),
+                                .build()
+                        }
+                        AsyncImage(
+                            model = authorAvatarRequest,
                             contentDescription = activity.post.user.displayName ?: activity.post.user.slug,
                             modifier = Modifier
                                 .size(16.dp)
@@ -380,7 +350,7 @@ private fun ActivityListItem(
         FaIcon(
             icon = getActivityIcon(activity.type),
             size = 16.dp,
-            tint = if (isTip) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onBackground,
+            tint = if (isTip) DesperseTones.Warning else MaterialTheme.colorScheme.onBackground,
             style = FaIconStyle.Regular
         )
     }

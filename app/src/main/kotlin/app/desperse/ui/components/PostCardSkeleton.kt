@@ -26,9 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
-import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseComponentSpacing
 import app.desperse.ui.theme.DesperseSpacing
 
@@ -45,12 +45,11 @@ fun rememberShimmerBrush(): Brush {
         label = "shimmerTranslate"
     )
 
+    val baseColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val highlightColor = MaterialTheme.colorScheme.surfaceVariant
+
     return Brush.linearGradient(
-        colors = listOf(
-            DesperseColors.Zinc800,
-            DesperseColors.Zinc700,
-            DesperseColors.Zinc800
-        ),
+        colors = listOf(baseColor, highlightColor, baseColor),
         start = Offset(translateAnim - 400f, 0f),
         end = Offset(translateAnim, 0f)
     )

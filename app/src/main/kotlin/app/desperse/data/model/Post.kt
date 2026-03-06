@@ -30,6 +30,8 @@ data class Post(
     val collectibleAssetId: String? = null, // Asset ID for collectibles (cNFTs)
     // Multi-asset posts (only present if >1 asset)
     val assets: List<PostAsset>? = null,
+    // Primary asset ID (for gated download auth flow)
+    val assetId: String? = null,
     // Downloadable assets (non-previewable: audio, documents, 3D)
     val downloadableAssets: List<DownloadableAsset>? = null,
     // Arweave permanent storage

@@ -54,11 +54,11 @@ object DesperseTones {
 
     // Dark mode tones
     val StandardDark = Color(0xFF27E4B8)       // caribbean-green-400
-    val CollectibleDark = Color(0xFF7346FF)    // blue-gem-500
-    val EditionDark = Color(0xFFB439FF)        // purple-heart-500
+    val CollectibleDark = Color(0xFF947BFF)    // blue-gem-400
+    val EditionDark = Color(0xFFC86FFF)        // purple-heart-400
     val WarningDark = Color(0xFFFF980A)        // flush-orange-500
     val InfoDark = Color(0xFF5DB3FD)           // azure-radiance-400
-    val DestructiveDark = Color(0xFFFF2357)    // torch-red-500
+    val DestructiveDark = Color(0xFFFF577F)    // torch-red-400
 
     // Legacy static references (dark mode defaults for compatibility)
     val Standard = StandardDark
@@ -181,6 +181,12 @@ fun toneInfo(): Color = if (androidx.compose.foundation.isSystemInDarkTheme())
 @Composable
 fun toneDestructive(): Color = if (androidx.compose.foundation.isSystemInDarkTheme())
     DesperseTones.DestructiveDark else DesperseTones.DestructiveLight
+
+@Composable
+fun toneLike(): Color = toneDestructive()
+
+@Composable
+fun toneSuccess(): Color = toneStandard()
 
 /**
  * Helper functions to get tone colors based on post type

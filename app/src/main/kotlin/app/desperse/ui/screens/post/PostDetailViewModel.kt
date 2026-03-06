@@ -12,6 +12,7 @@ import app.desperse.core.wallet.MwaError
 import app.desperse.core.wallet.TransactionWalletManager
 import app.desperse.data.PostUpdateManager
 import app.desperse.data.model.CollectState
+import app.desperse.data.dto.response.FollowUser
 import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
 import app.desperse.data.repository.PostRepository
@@ -45,6 +46,14 @@ data class PostDetailUiState(
     val currentUserAvatarUrl: String? = null,
     val currentUserId: String? = null,
     val lastFetchTime: Long = 0L,
+    // Collectors tab
+    val collectors: List<FollowUser> = emptyList(),
+    val isLoadingCollectors: Boolean = false,
+    val isLoadingMoreCollectors: Boolean = false,
+    val hasMoreCollectors: Boolean = false,
+    val collectorsNextCursor: String? = null,
+    val collectorsError: String? = null,
+    val collectorsFollowLoadingIds: Set<String> = emptySet(),
     // Wallet picker for external wallet selection
     val showWalletPicker: Boolean = false,
     val installedWallets: List<InstalledMwaWallet> = emptyList()
@@ -73,6 +82,91 @@ class PostDetailViewModel @Inject constructor(
         loadPost()
         observePostUpdates()
         observeCurrentUser()
+    }
+
+    fun loadCollectors() {
+        if (_uiState.value.isLoadingCollectors || _uiState.value.collectors.isNotEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingCollectors = true, collectorsError = null)
+            postRepository.getPostCollectors(postId)
+                .onSuccess { page ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingCollectors = false,
+                        collectors = page.users,
+                        hasMoreCollectors = page.hasMore,
+                        collectorsNextCursor = page.nextCursor
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingCollectors = false,
+                        collectorsError = error.message ?: "Failed to load collectors"
+                    )
+                }
+        }
+    }
+
+    fun loadMoreCollectors() {
+        val cursor = _uiState.value.collectorsNextCursor ?: return
+        if (_uiState.value.isLoadingMoreCollectors || !_uiState.value.hasMoreCollectors) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingMoreCollectors = true)
+            postRepository.getPostCollectors(postId, cursor)
+                .onSuccess { page ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingMoreCollectors = false,
+                        collectors = _uiState.value.collectors + page.users,
+                        hasMoreCollectors = page.hasMore,
+                        collectorsNextCursor = page.nextCursor
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(isLoadingMoreCollectors = false)
+                }
+        }
+    }
+
+    fun toggleFollowCollector(userId: String) {
+        val currentState = _uiState.value
+        if (currentState.collectorsFollowLoadingIds.contains(userId)) return
+
+        val user = currentState.collectors.find { it.id == userId } ?: return
+        val isCurrentlyFollowing = user.isFollowing
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                collectorsFollowLoadingIds = currentState.collectorsFollowLoadingIds + userId,
+                collectors = currentState.collectors.map { u ->
+                    if (u.id == userId) u.copy(isFollowing = !isCurrentlyFollowing) else u
+                }
+            )
+
+            val result = if (isCurrentlyFollowing) {
+                userRepository.unfollowUser(userId)
+            } else {
+                userRepository.followUser(userId)
+            }
+
+            result
+                .onSuccess { newIsFollowing ->
+                    _uiState.value = _uiState.value.copy(
+                        collectorsFollowLoadingIds = _uiState.value.collectorsFollowLoadingIds - userId,
+                        collectors = _uiState.value.collectors.map { u ->
+                            if (u.id == userId) u.copy(isFollowing = newIsFollowing) else u
+                        }
+                    )
+                }
+                .onFailure {
+                    _uiState.value = _uiState.value.copy(
+                        collectorsFollowLoadingIds = _uiState.value.collectorsFollowLoadingIds - userId,
+                        collectors = _uiState.value.collectors.map { u ->
+                            if (u.id == userId) u.copy(isFollowing = isCurrentlyFollowing) else u
+                        }
+                    )
+                }
+        }
     }
 
     /**

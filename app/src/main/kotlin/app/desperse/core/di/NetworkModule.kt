@@ -41,7 +41,9 @@ object NetworkModule {
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
                     level = if (BuildConfig.DEBUG) {
-                        HttpLoggingInterceptor.Level.BODY
+                        // HEADERS instead of BODY: logging full response bodies (e.g., 18KB feed JSON)
+                        // adds significant overhead to every request and clutters logcat
+                        HttpLoggingInterceptor.Level.HEADERS
                     } else {
                         HttpLoggingInterceptor.Level.NONE
                     }

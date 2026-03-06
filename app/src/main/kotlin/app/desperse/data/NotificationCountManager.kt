@@ -97,7 +97,8 @@ class NotificationCountManager @Inject constructor(
         override fun onStart(owner: LifecycleOwner) {
             // App came to foreground
             isAppForeground = true
-            if (isPolling) {
+            if (isPolling && pollingJob == null) {
+                // Only restart if polling was paused (job cancelled by onStop)
                 Log.d(TAG, "App foregrounded, resuming polling")
                 startPollingInternal()
             }
@@ -137,13 +138,31 @@ class NotificationCountManager @Inject constructor(
         pollingJob?.cancel()
         pollingJob = scope.launch {
             Log.d(TAG, "Starting notification count polling")
-            // Immediate fetch
-            fetchCounters()
+            // Initial fetch with retry (startup requests can fail due to connection contention)
+            fetchCountersWithRetry()
 
             // Then poll periodically
             while (isActive) {
                 delay(POLL_INTERVAL_MS)
                 fetchCounters()
+            }
+        }
+    }
+
+    /**
+     * Fetch with retry for initial startup (when concurrent requests may fail).
+     */
+    private suspend fun fetchCountersWithRetry(maxRetries: Int = 2) {
+        var attempt = 0
+        var delayMs = 2_000L
+        while (attempt <= maxRetries) {
+            val success = fetchCounters()
+            if (success || !isPolling) return
+            attempt++
+            if (attempt <= maxRetries) {
+                Log.d(TAG, "Retrying counter fetch (attempt ${attempt + 1}/${maxRetries + 1}) in ${delayMs}ms")
+                delay(delayMs)
+                delayMs *= 2
             }
         }
     }
@@ -162,9 +181,10 @@ class NotificationCountManager @Inject constructor(
     /**
      * Fetch notification counters from server.
      * Called by polling and can be called manually for immediate refresh.
+     * @return true if fetch succeeded, false otherwise
      */
-    suspend fun fetchCounters() {
-        try {
+    suspend fun fetchCounters(): Boolean {
+        return try {
             // Get lastSeen timestamps
             val prefs = context.feedDataStore.data.first()
             val forYouLastSeen = prefs[FOR_YOU_LAST_SEEN_KEY]
@@ -199,13 +219,16 @@ class NotificationCountManager @Inject constructor(
                             )
                         } ?: emptyList()
                     )
+                    true
                 }
                 is ApiResult.Error -> {
                     Log.w(TAG, "Failed to fetch notification counters: ${result.message}")
+                    false
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Error fetching notification counters", e)
+            false
         }
     }
 

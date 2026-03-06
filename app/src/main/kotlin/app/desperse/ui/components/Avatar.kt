@@ -18,6 +18,9 @@ import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSizes
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Avatar sizes matching style guide
@@ -66,22 +69,31 @@ fun DesperseAvatar(
         baseModifier
     }
 
-    val optimizedUrl = remember(imageUrl) {
-        imageUrl?.let { ImageOptimization.getOptimizedUrlForContext(it, ImageContext.AVATAR) }
+    val context = LocalContext.current
+    val imageModel = remember(imageUrl) {
+        imageUrl?.let { url ->
+            val optimized = ImageOptimization.getOptimizedUrlForContext(url, ImageContext.AVATAR)
+            ImageRequest.Builder(context)
+                .data(optimized)
+                .crossfade(150)
+                .size(size.size.value.toInt() * 2) // 2x for density
+                .build()
+        }
     }
 
     Box(
         modifier = finalModifier,
         contentAlignment = Alignment.Center
     ) {
-        if (optimizedUrl != null) {
+        if (imageModel != null) {
             AsyncImage(
-                model = optimizedUrl,
+                model = imageModel,
                 contentDescription = contentDescription,
                 modifier = Modifier
                     .size(size.size)
                     .clip(CircleShape),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                filterQuality = FilterQuality.Low
             )
         } else if (identityInput != null) {
             GeometricAvatar(

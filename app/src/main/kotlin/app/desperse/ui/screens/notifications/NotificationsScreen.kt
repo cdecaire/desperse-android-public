@@ -1,5 +1,10 @@
 package app.desperse.ui.screens.notifications
 
+import app.desperse.ui.components.EmptyState
+import app.desperse.ui.components.ErrorState
+import app.desperse.ui.components.LoadingMoreIndicator
+import app.desperse.ui.components.LoadingState
+import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -165,76 +170,24 @@ fun NotificationsScreen(
     ) { padding ->
         when {
             uiState.isLoading && uiState.notifications.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                LoadingState(modifier = Modifier.padding(padding))
             }
 
             uiState.error != null && uiState.notifications.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
-                    ) {
-                        FaIcon(
-                            icon = FaIcons.TriangleExclamation,
-                            size = 48.dp,
-                            tint = MaterialTheme.colorScheme.error,
-                            style = FaIconStyle.Solid
-                        )
-                        Text(
-                            text = uiState.error!!,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        DesperseTextButton(
-                            text = "Retry",
-                            onClick = { viewModel.load() },
-                            variant = ButtonVariant.Default
-                        )
-                    }
-                }
+                ErrorState(
+                    message = uiState.error!!,
+                    onRetry = { viewModel.load() },
+                    modifier = Modifier.padding(padding)
+                )
             }
 
             uiState.notifications.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
-                    ) {
-                        FaIcon(
-                            icon = FaIcons.Bell,
-                            size = 48.dp,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            style = FaIconStyle.Regular
-                        )
-                        Text(
-                            text = "No notifications yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "When someone interacts with your posts, you'll see it here",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
+                EmptyState(
+                    icon = FaIcons.Bell,
+                    message = "No notifications yet",
+                    subtitle = "When someone interacts with your posts, you'll see it here",
+                    modifier = Modifier.padding(padding)
+                )
             }
 
             else -> {
@@ -252,7 +205,8 @@ fun NotificationsScreen(
                     ) {
                         items(
                             items = uiState.notifications,
-                            key = { it.id }
+                            key = { it.id },
+                            contentType = { "notification" }
                         ) { notification ->
                             NotificationListItem(
                                 notification = notification,
@@ -262,19 +216,7 @@ fun NotificationsScreen(
                         }
 
                         if (uiState.isLoadingMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(DesperseSpacing.lg),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                }
-                            }
+                            item { LoadingMoreIndicator() }
                         }
                     }
                 }
@@ -292,7 +234,7 @@ private fun NotificationListItem(
     val context = LocalContext.current
 
     // Determine what to navigate to when clicking the notification
-    val onClick = remember(notification) {
+    val onClick = remember(notification.type, notification.actor.usernameSlug, notification.referenceId, notification.reference?.postId) {
         {
             when (notification.type) {
                 "follow" -> onUserClick(notification.actor.usernameSlug)
@@ -310,7 +252,7 @@ private fun NotificationListItem(
     }
 
     // Get thumbnail URL for post-related notifications
-    val thumbnailUrl = remember(notification) {
+    val thumbnailUrl = remember(notification.type, notification.reference?.coverUrl, notification.reference?.mediaUrl) {
         if (notification.type != "follow") {
             notification.reference?.coverUrl ?: notification.reference?.mediaUrl
         } else null
@@ -429,29 +371,3 @@ private fun getNotificationText(type: String, referenceType: String?): String {
     }
 }
 
-/**
- * Format timestamp as relative time (e.g., "2m", "3h", "5d")
- */
-private fun formatRelativeTime(isoTimestamp: String): String {
-    return try {
-        val instant = Instant.parse(isoTimestamp)
-        val now = Instant.now()
-        val duration = Duration.between(instant, now)
-
-        when {
-            duration.seconds < 60 -> "now"
-            duration.toMinutes() < 60 -> "${duration.toMinutes()}m"
-            duration.toHours() < 24 -> "${duration.toHours()}h"
-            duration.toDays() < 7 -> "${duration.toDays()}d"
-            duration.toDays() < 30 -> "${duration.toDays() / 7}w"
-            else -> {
-                // Format as date for older notifications
-                val formatter = DateTimeFormatter.ofPattern("MMM d")
-                val zonedDateTime = instant.atZone(java.time.ZoneId.systemDefault())
-                formatter.format(zonedDateTime)
-            }
-        }
-    } catch (e: DateTimeParseException) {
-        ""
-    }
-}

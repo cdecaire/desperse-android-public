@@ -2,7 +2,6 @@ package app.desperse.ui.components
 
 import android.os.Build
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,14 +19,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,7 +61,6 @@ fun FeedbackSheet(
 ) {
     if (!isOpen) return
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
     var rating by remember { mutableStateOf<Int?>(null) }
@@ -106,32 +101,13 @@ fun FeedbackSheet(
         }
     }
 
-    ModalBottomSheet(
+    DesperseBottomSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
         onDismissRequest = {
             if (!isSubmitting) {
                 resetForm()
                 onDismiss()
-            }
-        },
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = DesperseSpacing.md),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(32.dp)
-                        .height(4.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(2.dp)
-                        )
-                )
             }
         }
     ) {
@@ -268,7 +244,7 @@ private fun StarRating(
                     size = 28.dp,
                     style = if (isSelected) FaIconStyle.Solid else FaIconStyle.Regular,
                     tint = if (isSelected) {
-                        Color(0xFFFFC107) // Yellow for selected stars
+                        DesperseTones.Warning
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }

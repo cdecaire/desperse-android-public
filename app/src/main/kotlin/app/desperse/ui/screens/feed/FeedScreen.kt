@@ -89,6 +89,8 @@ fun FeedScreen(
     viewModel: FeedViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val collectStates by viewModel.collectStates.collectAsState()
+    val purchaseStates by viewModel.purchaseStates.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val notificationCounters by viewModel.notificationCounters.collectAsState()
     val pullRefreshState = rememberPullToRefreshState()
@@ -358,8 +360,13 @@ fun FeedScreen(
                                 }
                             }
                             val isOwnPost = uiState.currentUserId != null && post.user.id == uiState.currentUserId
-                            val collectState = uiState.collectStates[post.id] ?: CollectState.Idle
-                            val purchaseState = uiState.purchaseStates[post.id] ?: PurchaseState.Idle
+                            // Read per-item via derivedStateOf so only this item recomposes on change
+                            val collectState by remember(post.id) {
+                                derivedStateOf { collectStates[post.id] ?: CollectState.Idle }
+                            }
+                            val purchaseState by remember(post.id) {
+                                derivedStateOf { purchaseStates[post.id] ?: PurchaseState.Idle }
+                            }
 
                             val onCommentClickStable = remember(post.id, post.commentCount) {
                                 {

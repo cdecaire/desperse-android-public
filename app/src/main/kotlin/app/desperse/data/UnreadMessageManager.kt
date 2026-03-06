@@ -62,7 +62,8 @@ class UnreadMessageManager @Inject constructor(
         override fun onStart(owner: LifecycleOwner) {
             // App came to foreground
             isAppForeground = true
-            if (isRunning) {
+            if (isRunning && pollingJob == null) {
+                // Only restart if polling was paused (job cancelled by onStop)
                 Log.d(TAG, "App foregrounded, resuming message polling")
                 startPollingInternal()
             }
@@ -95,8 +96,8 @@ class UnreadMessageManager @Inject constructor(
             }
         }
 
-        // Fetch initial state
-        scope.launch { fetchUnreadStatus() }
+        // Fetch initial state with retry (startup requests can fail due to connection contention)
+        scope.launch { fetchUnreadStatusWithRetry() }
 
         // Observe Ably events for real-time updates (always active)
         ablyJob?.cancel()
@@ -179,8 +180,29 @@ class UnreadMessageManager @Inject constructor(
         fetchUnreadStatus()
     }
 
-    private suspend fun fetchUnreadStatus() {
-        try {
+    /**
+     * Fetch with retry for initial startup (when concurrent requests may fail).
+     */
+    private suspend fun fetchUnreadStatusWithRetry(maxRetries: Int = 2) {
+        var attempt = 0
+        var delayMs = 2_000L
+        while (attempt <= maxRetries) {
+            val success = fetchUnreadStatus()
+            if (success || !isRunning) return
+            attempt++
+            if (attempt <= maxRetries) {
+                Log.d(TAG, "Retrying unread status fetch (attempt ${attempt + 1}/${maxRetries + 1}) in ${delayMs}ms")
+                delay(delayMs)
+                delayMs *= 2
+            }
+        }
+    }
+
+    /**
+     * @return true if fetch succeeded, false otherwise
+     */
+    private suspend fun fetchUnreadStatus(): Boolean {
+        return try {
             when (val result = safeApiCall { api.getThreads(limit = 50) }) {
                 is ApiResult.Success -> {
                     synchronized(unreadThreadIds) {
@@ -190,13 +212,16 @@ class UnreadMessageManager @Inject constructor(
                             .forEach { unreadThreadIds.add(it.id) }
                     }
                     _hasUnreadMessages.value = synchronized(unreadThreadIds) { unreadThreadIds.isNotEmpty() }
+                    true
                 }
                 is ApiResult.Error -> {
                     Log.w(TAG, "Failed to fetch thread unread status: ${result.message}")
+                    false
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Error fetching unread status", e)
+            false
         }
     }
 

@@ -33,11 +33,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -72,7 +70,6 @@ fun CommentSheet(
     if (!isOpen) return
 
     val uiState by viewModel.uiState.collectAsState()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val focusManager = LocalFocusManager.current
 
     var commentText by remember { mutableStateOf("") }
@@ -87,29 +84,14 @@ fun CommentSheet(
         previousCommentsSize = uiState.comments.size
     }
 
-    ModalBottomSheet(
+    DesperseBottomSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
         onDismissRequest = {
             focusManager.clearFocus()
             onDismiss()
         },
-        sheetState = sheetState,
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = DesperseSpacing.sm, bottom = DesperseSpacing.sm),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(32.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                )
-            }
-        }
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) }
     ) {
         // ~60% when keyboard is hidden, expand when keyboard appears
         val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
@@ -192,14 +174,17 @@ fun CommentSheet(
                                 items = uiState.comments,
                                 key = { it.id }
                             ) { comment ->
+                                val onUserClickStable = remember(comment.user.slug) { { onUserClick(comment.user.slug) } }
+                                val onDeleteStable = remember(comment.id) { { commentToDelete = comment } }
+                                val onReportStable = remember(comment.id) { { onReportComment(comment) } }
                                 SwipeableCommentItem(
                                     comment = comment,
                                     isOwnComment = comment.user.id == uiState.currentUserId,
                                     isDeleting = uiState.deletingCommentId == comment.id,
-                                    onUserClick = { onUserClick(comment.user.slug) },
-                                    onMentionClick = { username -> onUserClick(username) },
-                                    onDelete = { commentToDelete = comment },
-                                    onReport = { onReportComment(comment) }
+                                    onUserClick = onUserClickStable,
+                                    onMentionClick = onUserClick,
+                                    onDelete = onDeleteStable,
+                                    onReport = onReportStable
                                 )
                             }
                         }
@@ -281,7 +266,7 @@ private fun SheetCommentInputBar(
     val canSubmit = text.trim().isNotEmpty() && !isOverLimit && !isSubmitting
 
     Column(
-        modifier = modifier.background(MaterialTheme.colorScheme.background)
+        modifier = modifier.background(MaterialTheme.colorScheme.surface)
     ) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 

@@ -240,24 +240,6 @@ fun DocumentPreview(
             )
         }
 
-        // File type label
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(DesperseSpacing.sm)
-                .background(
-                    color = Color.Black.copy(alpha = 0.5f),
-                    shape = CircleShape
-                )
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            val extension = documentUrl.substringAfterLast('.').lowercase().substringBefore('?')
-            androidx.compose.material3.Text(
-                text = extension.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White
-            )
-        }
     }
 }
 

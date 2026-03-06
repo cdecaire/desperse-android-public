@@ -1,8 +1,10 @@
 package app.desperse.data.model
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Immutable
 @Serializable
 data class User(
     val id: String,

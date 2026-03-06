@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -108,13 +109,21 @@ fun VideoPlayer(
         }
     }
 
-    // Create ExoPlayer instance
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUrl))
-            repeatMode = Player.REPEAT_MODE_ALL
-            volume = 0f // Start muted
-            prepare()
+    // Track visibility to defer ExoPlayer creation until actually on screen
+    var isVisible by remember { mutableStateOf(false) }
+
+    // Deferred ExoPlayer - only created when the composable becomes visible
+    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+
+    // Create ExoPlayer only when visible
+    LaunchedEffect(isVisible) {
+        if (isVisible && exoPlayer == null) {
+            exoPlayer = ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(videoUrl))
+                repeatMode = Player.REPEAT_MODE_ALL
+                volume = 0f // Start muted
+                prepare()
+            }
         }
     }
 
@@ -122,9 +131,9 @@ fun VideoPlayer(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> exoPlayer.pause()
+                Lifecycle.Event.ON_PAUSE -> exoPlayer?.pause()
                 Lifecycle.Event.ON_RESUME -> {
-                    if (isPlaying) exoPlayer.play()
+                    if (isPlaying) exoPlayer?.play()
                 }
                 else -> {}
             }
@@ -132,13 +141,14 @@ fun VideoPlayer(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            exoPlayer.release()
+            exoPlayer?.release()
+            exoPlayer = null
         }
     }
 
     // Update mute state
-    LaunchedEffect(isMuted) {
-        exoPlayer.volume = if (isMuted) 0f else 1f
+    LaunchedEffect(isMuted, exoPlayer) {
+        exoPlayer?.volume = if (isMuted) 0f else 1f
     }
 
     // Auto-hide controls after 3 seconds when playing
@@ -151,7 +161,8 @@ fun VideoPlayer(
 
     // Listen for video size changes (only update aspect ratio if not using fixed)
     LaunchedEffect(exoPlayer, useFixedAspectRatio) {
-        exoPlayer.addListener(object : Player.Listener {
+        val player = exoPlayer ?: return@LaunchedEffect
+        player.addListener(object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (videoSize.width > 0 && videoSize.height > 0) {
                     // Only update dynamic ratio when not using fixed ratio
@@ -165,27 +176,35 @@ fun VideoPlayer(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY && !isPlaying) {
                     // Auto-play when ready
-                    exoPlayer.play()
+                    player.play()
                     isPlaying = true
                 }
             }
         })
     }
 
+    // Remember cover image request to avoid recreation during recomposition
+    val coverImageRequest = remember(coverUrl) {
+        coverUrl?.let { url ->
+            ImageRequest.Builder(context)
+                .data(ImageOptimization.getOptimizedUrlForContext(url, ImageContext.FEED_THUMBNAIL))
+                .crossfade(150)
+                .build()
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(displayAspectRatio)
-            .background(Color.Black),
+            .background(Color.Black)
+            .onGloballyPositioned { isVisible = true },
         contentAlignment = Alignment.Center
     ) {
         // Blurred background for portrait videos
-        if (needsBlurredBg && coverUrl != null) {
+        if (needsBlurredBg && coverImageRequest != null) {
             AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(ImageOptimization.getOptimizedUrlForContext(coverUrl, ImageContext.FEED_THUMBNAIL))
-                    .crossfade(true)
-                    .build(),
+                model = coverImageRequest,
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
@@ -196,50 +215,49 @@ fun VideoPlayer(
             )
         }
 
-        // Video player
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = exoPlayer
-                    useController = false
-                    resizeMode = if (needsBlurredBg) {
+        // Video player - only render when player is ready
+        val currentPlayer = exoPlayer
+        if (currentPlayer != null) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = currentPlayer
+                        useController = false
+                        resizeMode = if (needsBlurredBg) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        } else {
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        }
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { playerView ->
+                    playerView.player = currentPlayer
+                    playerView.resizeMode = if (needsBlurredBg) {
                         AspectRatioFrameLayout.RESIZE_MODE_FIT
                     } else {
                         AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     }
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
                 }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { playerView ->
-                playerView.resizeMode = if (needsBlurredBg) {
-                    AspectRatioFrameLayout.RESIZE_MODE_FIT
-                } else {
-                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                }
-            }
-        )
+            )
+        }
 
         // Poster overlay when paused
         AnimatedVisibility(
-            visible = !isPlaying && coverUrl != null,
+            visible = !isPlaying && coverImageRequest != null,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-            if (coverUrl != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(ImageOptimization.getOptimizedUrlForContext(coverUrl, ImageContext.FEED_THUMBNAIL))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = if (needsBlurredBg) ContentScale.Fit else ContentScale.Crop
-                )
-            }
+            AsyncImage(
+                model = coverImageRequest,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = if (needsBlurredBg) ContentScale.Fit else ContentScale.Crop
+            )
         }
 
         // Tap overlay for toggling controls (doesn't block button clicks)
@@ -276,10 +294,11 @@ fun VideoPlayer(
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.5f))
                         .clickable {
+                            val player = exoPlayer ?: return@clickable
                             if (isPlaying) {
-                                exoPlayer.pause()
+                                player.pause()
                             } else {
-                                exoPlayer.play()
+                                player.play()
                             }
                             isPlaying = !isPlaying
                             controlsKey++  // Reset auto-hide timer

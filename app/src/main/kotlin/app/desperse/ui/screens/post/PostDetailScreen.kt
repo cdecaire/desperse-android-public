@@ -1,16 +1,22 @@
 package app.desperse.ui.screens.post
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import app.desperse.ui.components.AvatarSize
 import app.desperse.ui.components.DesperseAvatar
 import app.desperse.ui.theme.DesperseSizes
+import app.desperse.ui.util.formatCount
+import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,17 +41,29 @@ import app.desperse.ui.components.PostCardMenuSheet
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.components.WalletPickerSheet
+import app.desperse.ui.components.DesperseTextButton
+import app.desperse.ui.components.EmptyState
+import app.desperse.ui.components.GeometricAvatar
+import app.desperse.ui.components.LoadingMoreIndicator
+import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.media.ImageContext
+import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.components.media.MediaType
 import app.desperse.ui.components.media.PostMedia
 import app.desperse.ui.components.media.detectMediaType
 import app.desperse.ui.components.media.detectMediaTypeFromMime
+import app.desperse.data.dto.response.FollowUser
 import app.desperse.ui.screens.feed.CommentSheetViewModel
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneCollectible
+import app.desperse.ui.theme.toneEdition
+import app.desperse.ui.theme.toneLike
 import app.desperse.ui.util.MintWindowPhase
 import app.desperse.ui.util.MintWindowUtils
 import coil.compose.AsyncImage
 import android.app.Activity
+import coil.request.ImageRequest
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +74,7 @@ import app.desperse.core.preferences.ExplorerOption
 import app.desperse.core.util.openInAppBrowser
 import app.desperse.ui.components.PostCardMenuEntryPoint
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,8 +87,19 @@ fun PostDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activity = LocalContext.current as Activity
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
     var showDeletePostConfirmation by remember { mutableStateOf(false) }
+
+    // Download manager for gated assets
+    val downloadManager = remember {
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            PostCardMenuEntryPoint::class.java
+        )
+        entryPoint.gatedDownloadManager()
+    }
 
     // Comment sheet state
     var showCommentSheet by remember { mutableStateOf(false) }
@@ -131,7 +161,16 @@ fun PostDetailScreen(
                     collectState = uiState.collectState,
                     purchaseState = uiState.purchaseState,
                     onCollectClick = { viewModel.collect() },
-                    onPurchaseClick = { viewModel.purchase(activity) }
+                    onPurchaseClick = { viewModel.purchase(activity) },
+                    onDownloadClick = {
+                        // Priority: assetId > downloadableAssets[0].id (matches web)
+                        val downloadAssetId = post.assetId
+                            ?: post.downloadableAssets?.firstOrNull()?.id
+                            ?: return@StickyFooterCta
+                        coroutineScope.launch {
+                            downloadManager.downloadGatedAsset(context, downloadAssetId)
+                        }
+                    }
                 )
             }
         }
@@ -159,6 +198,7 @@ fun PostDetailScreen(
             post != null -> {
                 PostDetailContent(
                     post = post,
+                    uiState = uiState,
                     purchaseState = uiState.purchaseState,
                     onUserClick = onUserClick,
                     onLikeClick = { viewModel.toggleLike() },
@@ -166,6 +206,9 @@ fun PostDetailScreen(
                         commentSheetViewModel.openForPost(postId, post.commentCount)
                         showCommentSheet = true
                     },
+                    onLoadCollectors = { viewModel.loadCollectors() },
+                    onLoadMoreCollectors = { viewModel.loadMoreCollectors() },
+                    onToggleFollowCollector = { viewModel.toggleFollowCollector(it) },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(scaffoldPadding)
@@ -293,7 +336,8 @@ private fun StickyFooterCta(
     collectState: CollectState,
     purchaseState: PurchaseState,
     onCollectClick: () -> Unit,
-    onPurchaseClick: () -> Unit
+    onPurchaseClick: () -> Unit,
+    onDownloadClick: () -> Unit = {}
 ) {
     val isEdition = post.type == "edition"
 
@@ -318,11 +362,19 @@ private fun StickyFooterCta(
             (post.currentSupply ?: 0) >= post.maxSupply
     val isMintScheduled = mintPhase is MintWindowPhase.Scheduled
     val isMintEnded = mintPhase is MintWindowPhase.Ended
+    // Match web logic: check downloadableAssets OR media type detection (document/3D)
+    val mediaType = remember(post.mediaMimeType, post.mediaUrl) {
+        if (post.mediaMimeType != null) detectMediaTypeFromMime(post.mediaMimeType)
+        else detectMediaType(post.mediaUrl)
+    }
+    val hasDownload = !post.downloadableAssets.isNullOrEmpty() ||
+            mediaType == MediaType.DOCUMENT ||
+            mediaType == MediaType.MODEL_3D
 
     Column(modifier = Modifier.fillMaxWidth()) {
         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
-        if (isMintEnded && post.mintWindowEnd != null) {
+        if (isMintEnded && post.mintWindowEnd != null && !(isCollected && hasDownload)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -337,7 +389,9 @@ private fun StickyFooterCta(
                 )
             }
         } else {
+            val isDownloadMode = isCollected && hasDownload
             val buttonText = when {
+                isDownloadMode -> "Download"
                 isCollected -> "Collected"
                 isFailed -> "Try Again"
                 isSoldOut -> "Sold Out"
@@ -347,7 +401,7 @@ private fun StickyFooterCta(
                 }
                 else -> "Collect"
             }
-            val isEnabled = !isCollected && !isSoldOut && !isLoading && !isMintScheduled
+            val isEnabled = isDownloadMode || (!isCollected && !isSoldOut && !isLoading && !isMintScheduled)
             val containerColor = MaterialTheme.colorScheme.onSurface
             val contentColor = MaterialTheme.colorScheme.surface
 
@@ -359,7 +413,13 @@ private fun StickyFooterCta(
                     .padding(top = DesperseSpacing.lg, bottom = DesperseSpacing.sm)
             ) {
                 Button(
-                    onClick = { if (isEdition) onPurchaseClick() else onCollectClick() },
+                    onClick = {
+                        when {
+                            isDownloadMode -> onDownloadClick()
+                            isEdition -> onPurchaseClick()
+                            else -> onCollectClick()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(DesperseSizes.buttonCta),
@@ -379,7 +439,14 @@ private fun StickyFooterCta(
                             color = contentColor
                         )
                     } else {
-                        if (isCollected) {
+                        if (isDownloadMode) {
+                            FaIcon(
+                                icon = FaIcons.Download,
+                                size = 14.dp,
+                                tint = contentColor
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        } else if (isCollected) {
                             FaIcon(
                                 icon = FaIcons.Check,
                                 size = 14.dp,
@@ -401,26 +468,58 @@ private fun StickyFooterCta(
 @Composable
 private fun PostDetailContent(
     post: Post,
+    uiState: PostDetailUiState,
     purchaseState: PurchaseState,
     onUserClick: (String) -> Unit,
     onLikeClick: () -> Unit,
     onCommentClick: () -> Unit,
+    onLoadCollectors: () -> Unit,
+    onLoadMoreCollectors: () -> Unit,
+    onToggleFollowCollector: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isNft = post.type == "collectible" || post.type == "edition"
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+
+    // Load collectors when switching to that tab
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1 && isNft) {
+            onLoadCollectors()
+        }
+    }
+
+    // Infinite scroll for collectors tab
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo }
+            .collect { layoutInfo ->
+                if (selectedTab == 1) {
+                    val totalItems = layoutInfo.totalItemsCount
+                    val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                    if (lastVisibleItem >= totalItems - 6 &&
+                        !uiState.isLoadingMoreCollectors &&
+                        uiState.hasMoreCollectors
+                    ) {
+                        onLoadMoreCollectors()
+                    }
+                }
+            }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxSize()
     ) {
         // User Header
-        item {
+        item(key = "header") {
             PostDetailHeader(
                 post = post,
                 onUserClick = { onUserClick(post.user.slug) }
             )
         }
 
-        // Media - use dynamic aspect ratio for detail view (no layout shift concerns)
-        // Includes price pill overlay for editions
-        item {
+        // Media
+        item(key = "media") {
             Box(modifier = Modifier.fillMaxWidth()) {
                 PostMedia(
                     post = post,
@@ -428,8 +527,6 @@ private fun PostDetailContent(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Price pill overlay for editions (top-right position like web)
-                // Always show price, even if already purchased
                 if (post.type == "edition") {
                     val priceText = formatPriceText(post.price, post.currency)
                     MediaPill(
@@ -442,8 +539,8 @@ private fun PostDetailContent(
             }
         }
 
-        // Action Bar — simplified with passive counts on right
-        item {
+        // Action Bar
+        item(key = "actions") {
             PostDetailActions(
                 post = post,
                 purchaseState = purchaseState,
@@ -454,7 +551,7 @@ private fun PostDetailContent(
 
         // NFT Name title
         if (!post.nftName.isNullOrBlank()) {
-            item {
+            item(key = "nft_name") {
                 Text(
                     text = post.nftName,
                     style = MaterialTheme.typography.titleLarge,
@@ -466,9 +563,9 @@ private fun PostDetailContent(
             }
         }
 
-        // Caption — simplified, no username prefix
+        // Caption
         if (!post.caption.isNullOrBlank()) {
-            item {
+            item(key = "caption") {
                 PostDetailCaption(
                     caption = post.caption,
                     onMentionClick = onUserClick
@@ -476,18 +573,115 @@ private fun PostDetailContent(
             }
         }
 
-        // Details section
-        item {
+        // Segment control + tab content
+        item(key = "divider") {
             Spacer(modifier = Modifier.height(DesperseSpacing.lg))
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.surfaceVariant
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+        }
+
+        item(key = "tabs") {
+            DetailTabs(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                showCollectors = isNft
             )
-            Spacer(modifier = Modifier.height(DesperseSpacing.sm))
-            PostDetailsSection(post = post)
+        }
+
+        // Full-width divider above tab content
+        item(key = "tab_divider") {
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+        }
+
+        // Tab content
+        when {
+            selectedTab == 0 || !isNft -> {
+                item(key = "details") {
+                    PostDetailsSection(post = post)
+                }
+            }
+            selectedTab == 1 && isNft -> {
+                when {
+                    uiState.isLoadingCollectors -> {
+                        item(key = "collectors_loading") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+                    uiState.collectorsError != null -> {
+                        item(key = "collectors_error") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(DesperseSpacing.xl),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = uiState.collectorsError,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    uiState.collectors.isEmpty() -> {
+                        item(key = "collectors_empty") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(DesperseSpacing.xl),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    FaIcon(
+                                        icon = FaIcons.Users,
+                                        size = 32.dp,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(DesperseSpacing.sm))
+                                    Text(
+                                        text = "No collectors yet",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        items(
+                            items = uiState.collectors,
+                            key = { it.id },
+                            contentType = { "collector" }
+                        ) { user ->
+                            val onUserClickStable = remember(user.slug) { { onUserClick(user.slug) } }
+                            val onFollowClickStable = remember(user.id) { { onToggleFollowCollector(user.id) } }
+                            CollectorItem(
+                                user = user,
+                                isCurrentUser = user.id == uiState.currentUserId,
+                                onUserClick = onUserClickStable,
+                                onFollowClick = onFollowClickStable,
+                                isFollowLoading = uiState.collectorsFollowLoadingIds.contains(user.id)
+                            )
+                        }
+
+                        if (uiState.isLoadingMoreCollectors) {
+                            item(key = "collectors_loading_more") {
+                                LoadingMoreIndicator()
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Bottom spacing
-        item {
+        item(key = "bottom_spacing") {
             Spacer(modifier = Modifier.height(DesperseSpacing.xl))
         }
     }
@@ -585,7 +779,7 @@ private fun PostDetailActions(
                     icon = FaIcons.Heart,
                     size = 18.dp,
                     style = if (post.isLiked) FaIconStyle.Solid else FaIconStyle.Regular,
-                    tint = if (post.isLiked) DesperseTones.Like else MaterialTheme.colorScheme.onSurface
+                    tint = if (post.isLiked) toneLike() else MaterialTheme.colorScheme.onSurface
                 )
                 if (post.likeCount > 0) {
                     Text(
@@ -621,7 +815,7 @@ private fun PostDetailActions(
         // Right side: Passive collect/edition count (display-only)
         when (post.type) {
             "collectible" -> {
-                val toneColor = if (post.isCollected) DesperseTones.Collectible
+                val toneColor = if (post.isCollected) toneCollectible()
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -645,7 +839,7 @@ private fun PostDetailActions(
             }
             "edition" -> {
                 val isOwned = post.isCollected || purchaseState is PurchaseState.Success
-                val toneColor = if (isOwned) DesperseTones.Edition
+                val toneColor = if (isOwned) toneEdition()
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 val icon = if (post.maxSupply == 1) FaIcons.HexagonImage else FaIcons.Images
                 val supplyText = when {
@@ -819,15 +1013,6 @@ private fun PostDetailsSection(post: Post) {
             .padding(horizontal = DesperseSpacing.md)
             .padding(top = DesperseSpacing.md)
     ) {
-        // Section header
-        Text(
-            text = "Details",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(DesperseSpacing.sm))
-
         DetailRow("Type", typeLabel)
         categoriesText?.let { DetailRow("Categories", it) }
         supplyText?.let { DetailRow("Supply", it) }
@@ -859,10 +1044,6 @@ private fun DetailRow(
     trailingIcon: String? = null,
     onClick: (() -> Unit)? = null
 ) {
-    HorizontalDivider(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        thickness = 0.5.dp
-    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -892,6 +1073,169 @@ private fun DetailRow(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+    }
+}
+
+/**
+ * Segment control tabs matching the feed "For You / Following" style.
+ */
+@Composable
+private fun DetailTabs(
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    showCollectors: Boolean = true
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                top = DesperseSpacing.xs,
+                start = if (showCollectors) 0.dp else DesperseSpacing.md,
+                end = if (showCollectors) 0.dp else DesperseSpacing.md
+            )
+    ) {
+        DetailTab(
+            text = "Details",
+            isSelected = selectedTab == 0,
+            onClick = { onTabSelected(0) },
+            modifier = if (showCollectors) Modifier.weight(1f) else Modifier
+        )
+        if (showCollectors) {
+            DetailTab(
+                text = "Collectors",
+                isSelected = selectedTab == 1,
+                onClick = { onTabSelected(1) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailTab(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            MaterialTheme.colorScheme.onBackground
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        label = "tabTextColor"
+    )
+
+    val underlineColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            MaterialTheme.colorScheme.onBackground
+        } else {
+            MaterialTheme.colorScheme.background
+        },
+        label = "tabUnderlineColor"
+    )
+
+    Column(
+        modifier = modifier.clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = textColor,
+            modifier = Modifier.padding(vertical = DesperseSpacing.sm)
+        )
+
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(2.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(underlineColor)
+        )
+    }
+}
+
+@Composable
+private fun CollectorItem(
+    user: FollowUser,
+    isCurrentUser: Boolean = false,
+    onUserClick: () -> Unit,
+    onFollowClick: () -> Unit,
+    isFollowLoading: Boolean
+) {
+    val context = LocalContext.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onUserClick() }
+            .padding(horizontal = DesperseSpacing.lg, vertical = DesperseSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Avatar
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            if (user.avatarUrl != null) {
+                val optimizedUrl = remember(user.avatarUrl) {
+                    ImageOptimization.getOptimizedUrlForContext(user.avatarUrl, ImageContext.AVATAR)
+                }
+                val imageRequest = remember(optimizedUrl) {
+                    ImageRequest.Builder(context)
+                        .data(optimizedUrl)
+                        .crossfade(true)
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = user.displayName ?: user.slug,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                GeometricAvatar(
+                    input = user.slug,
+                    size = 48.dp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(DesperseSpacing.md))
+
+        // User info
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.displayName ?: user.slug,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "@${user.slug}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (!isCurrentUser) {
+            Spacer(modifier = Modifier.width(DesperseSpacing.sm))
+
+            DesperseTextButton(
+                text = if (user.isFollowing) "Following" else "Follow",
+                onClick = onFollowClick,
+                variant = if (user.isFollowing) ButtonVariant.Secondary else ButtonVariant.Default,
+                enabled = !isFollowLoading
+            )
         }
     }
 }
@@ -965,16 +1309,6 @@ private fun formatPriceText(price: Double?, currency: String?): String {
     }
 }
 
-/**
- * Format count (1.2k, 1.5M, etc.)
- */
-private fun formatCount(count: Int): String {
-    return when {
-        count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
-        count >= 1_000 -> "%.1fk".format(count / 1_000.0)
-        else -> count.toString()
-    }
-}
 
 /**
  * Format file size in bytes to human-readable string.
@@ -1002,27 +1336,3 @@ private fun formatFullDate(timestamp: String): String {
     }
 }
 
-/**
- * Format a timestamp string to relative time (e.g., "2h", "3d")
- */
-private fun formatRelativeTime(timestamp: String): String {
-    return try {
-        val instant = Instant.parse(timestamp)
-        val now = Instant.now()
-        val seconds = ChronoUnit.SECONDS.between(instant, now)
-
-        when {
-            seconds < 60 -> "now"
-            seconds < 3600 -> "${seconds / 60}m"
-            seconds < 86400 -> "${seconds / 3600}h"
-            seconds < 604800 -> "${seconds / 86400}d"
-            seconds < 2592000 -> "${seconds / 604800}w"
-            else -> {
-                val date = java.time.LocalDate.ofInstant(instant, java.time.ZoneId.systemDefault())
-                "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.dayOfMonth}"
-            }
-        }
-    } catch (e: Exception) {
-        ""
-    }
-}

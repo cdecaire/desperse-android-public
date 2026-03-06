@@ -51,7 +51,7 @@ app/src/main/kotlin/app/desperse/
 │   ├── dto/        # API request/response DTOs
 │   └── repository/ # Repository implementations
 └── ui/             # Presentation layer
-    ├── theme/      # Material 3 dark theme (always dark)
+    ├── theme/      # Material 3 theme (light + dark)
     ├── navigation/ # DesperseNavGraph, AuthGateViewModel
     └── screens/    # Feature screens with ViewModels
 ```

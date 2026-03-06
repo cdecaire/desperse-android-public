@@ -39,8 +39,6 @@ data class FeedUiState(
     val hasMore: Boolean = false,
     val nextCursor: String? = null,
     val error: String? = null,
-    val collectStates: Map<String, CollectState> = emptyMap(),
-    val purchaseStates: Map<String, PurchaseState> = emptyMap(),
     /** Timestamp of last successful fetch per tab - used for stale time logic */
     val lastFetchTimeByTab: Map<String, Long> = emptyMap(),
     val currentUserId: String? = null
@@ -69,6 +67,13 @@ class FeedViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(FeedUiState())
     val uiState: StateFlow<FeedUiState> = _uiState.asStateFlow()
+
+    /** Separate flows for collect/purchase states — changes only recompose affected items */
+    private val _collectStates = MutableStateFlow<Map<String, CollectState>>(emptyMap())
+    val collectStates: StateFlow<Map<String, CollectState>> = _collectStates.asStateFlow()
+
+    private val _purchaseStates = MutableStateFlow<Map<String, PurchaseState>>(emptyMap())
+    val purchaseStates: StateFlow<Map<String, PurchaseState>> = _purchaseStates.asStateFlow()
 
     private val _selectedTab = MutableStateFlow("for-you")
     val selectedTab: StateFlow<String> = _selectedTab.asStateFlow()
@@ -153,23 +158,17 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             postRepository.getFeed(_selectedTab.value)
                 .onSuccess { feedPage ->
-                    _uiState.update { currentState ->
-                        // Merge new data while preserving local state (collect states, etc.)
-                        val collectedPostIds = feedPage.posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
-                        val updatedCollectStates = currentState.collectStates.filterKeys { id ->
-                            id !in collectedPostIds
-                        }
-                        val updatedPurchaseStates = currentState.purchaseStates.filterKeys { id ->
-                            id !in collectedPostIds
-                        }
+                    // Clear stale collect/purchase states for posts now marked collected
+                    val collectedPostIds = feedPage.posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
+                    _collectStates.update { it.filterKeys { id -> id !in collectedPostIds } }
+                    _purchaseStates.update { it.filterKeys { id -> id !in collectedPostIds } }
 
+                    _uiState.update { currentState ->
                         currentState.copy(
                             posts = feedPage.posts,
                             hasMore = feedPage.hasMore,
                             nextCursor = feedPage.nextCursor,
                             error = null,
-                            collectStates = updatedCollectStates,
-                            purchaseStates = updatedPurchaseStates,
                             lastFetchTimeByTab = currentState.lastFetchTimeByTab +
                                 (_selectedTab.value to System.currentTimeMillis())
                         )
@@ -230,13 +229,11 @@ class FeedViewModel @Inject constructor(
                     post
                 }
             }
-            // Also update collect state to Success if collected
-            val updatedCollectStates = if (isCollected) {
-                currentState.collectStates + (postId to CollectState.Success)
-            } else {
-                currentState.collectStates
-            }
-            currentState.copy(posts = updatedPosts, collectStates = updatedCollectStates)
+            currentState.copy(posts = updatedPosts)
+        }
+        // Update collect state separately
+        if (isCollected) {
+            _collectStates.update { it + (postId to CollectState.Success) }
         }
     }
 
@@ -298,17 +295,12 @@ class FeedViewModel @Inject constructor(
             postRepository.getFeed(_selectedTab.value)
                 .also { Trace.endSection() } // Feed.getFeed
                 .onSuccess { feedPage ->
-                    _uiState.update {
-                        // Clear collectStates/purchaseStates for posts that are now marked as collected
-                        // This prevents stale "failed" states from persisting after refresh
-                        val collectedPostIds = feedPage.posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
-                        val updatedCollectStates = it.collectStates.filterKeys { id ->
-                            id !in collectedPostIds
-                        }
-                        val updatedPurchaseStates = it.purchaseStates.filterKeys { id ->
-                            id !in collectedPostIds
-                        }
+                    // Clear stale collect/purchase states for posts now marked collected
+                    val collectedPostIds = feedPage.posts.filter { p -> p.isCollected }.map { p -> p.id }.toSet()
+                    _collectStates.update { it.filterKeys { id -> id !in collectedPostIds } }
+                    _purchaseStates.update { it.filterKeys { id -> id !in collectedPostIds } }
 
+                    _uiState.update {
                         it.copy(
                             posts = feedPage.posts,
                             isLoading = false,
@@ -316,8 +308,6 @@ class FeedViewModel @Inject constructor(
                             hasMore = feedPage.hasMore,
                             nextCursor = feedPage.nextCursor,
                             error = null,
-                            collectStates = updatedCollectStates,
-                            purchaseStates = updatedPurchaseStates,
                             lastFetchTimeByTab = it.lastFetchTimeByTab +
                                 (_selectedTab.value to System.currentTimeMillis())
                         )
@@ -408,7 +398,7 @@ class FeedViewModel @Inject constructor(
 
     fun collectPost(postId: String) {
         // Skip if already in progress or collected
-        val currentState = _uiState.value.collectStates[postId]
+        val currentState = _collectStates.value[postId]
         if (currentState is CollectState.Preparing ||
             currentState is CollectState.Confirming ||
             currentState is CollectState.Success) return
@@ -465,8 +455,8 @@ class FeedViewModel @Inject constructor(
                 delay(pollInterval)
 
                 // Check if we're still in confirming state
-                val currentState = _uiState.value.collectStates[postId]
-                if (currentState !is CollectState.Confirming) {
+                val currentCollectState = _collectStates.value[postId]
+                if (currentCollectState !is CollectState.Confirming) {
                     return@launch
                 }
 
@@ -505,11 +495,7 @@ class FeedViewModel @Inject constructor(
     }
 
     private fun updateCollectState(postId: String, state: CollectState) {
-        _uiState.update { currentState ->
-            currentState.copy(
-                collectStates = currentState.collectStates + (postId to state)
-            )
-        }
+        _collectStates.update { it + (postId to state) }
     }
 
     private fun updatePostCollected(postId: String, isCollected: Boolean) {
@@ -547,7 +533,7 @@ class FeedViewModel @Inject constructor(
         if (post.type != "edition") return
 
         // Skip if already in progress or purchased
-        val currentState = _uiState.value.purchaseStates[postId]
+        val currentState = _purchaseStates.value[postId]
         if (currentState is PurchaseState.Preparing ||
             currentState is PurchaseState.Signing ||
             currentState is PurchaseState.Broadcasting ||
@@ -646,8 +632,8 @@ class FeedViewModel @Inject constructor(
                 delay(pollInterval)
 
                 // Check if we're still in confirming state
-                val currentState = _uiState.value.purchaseStates[postId]
-                if (currentState !is PurchaseState.Confirming) {
+                val currentPurchaseState = _purchaseStates.value[postId]
+                if (currentPurchaseState !is PurchaseState.Confirming) {
                     return@launch
                 }
 
@@ -691,11 +677,7 @@ class FeedViewModel @Inject constructor(
     }
 
     private fun updatePurchaseState(postId: String, state: PurchaseState) {
-        _uiState.update { currentState ->
-            currentState.copy(
-                purchaseStates = currentState.purchaseStates + (postId to state)
-            )
-        }
+        _purchaseStates.update { it + (postId to state) }
     }
 
     private fun updatePostPurchased(postId: String) {

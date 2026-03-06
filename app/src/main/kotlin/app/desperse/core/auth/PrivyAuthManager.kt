@@ -21,9 +21,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -95,7 +97,7 @@ class PrivyAuthManager @Inject constructor(
                     config = PrivyConfig(
                         appId = BuildConfig.PRIVY_APP_ID,
                         appClientId = BuildConfig.PRIVY_APP_CLIENT_ID,
-                        logLevel = if (BuildConfig.DEBUG) PrivyLogLevel.VERBOSE else PrivyLogLevel.NONE
+                        logLevel = if (BuildConfig.DEBUG) PrivyLogLevel.WARNING else PrivyLogLevel.NONE
                     )
                 )
                 Trace.endSection() // Privy.init
@@ -118,35 +120,29 @@ class PrivyAuthManager @Inject constructor(
     /**
      * Check current authentication state.
      * Privy SDK may take a moment to restore session from storage.
-     * We collect the authState Flow to properly wait for session restoration.
+     * Uses Flow.first{} with timeout to efficiently wait for session restoration
+     * instead of polling, which reduces CPU wake-ups and responds faster.
      */
     private suspend fun checkAuthState() {
         try {
             val p = privy ?: return
 
-            // p.authState is a StateFlow - we need to collect it
             val authStateFlow = p.authState
-            var currentState = authStateFlow.value
+            val initialState = authStateFlow.value
 
-            Log.d(TAG, "checkAuthState: Starting, initial state = ${currentState::class.simpleName}")
+            Log.d(TAG, "checkAuthState: Starting, initial state = ${initialState::class.simpleName}")
 
             // Wait for Privy to transition from NotReady to a terminal state
-            // Use longer timeout (10 seconds) with increasing delays
-            val maxWaitMs = 10_000L
-            val startTime = System.currentTimeMillis()
-            var delayMs = 100L
-
-            while (currentState is PrivyAuthState.NotReady) {
-                val elapsed = System.currentTimeMillis() - startTime
-                if (elapsed >= maxWaitMs) {
-                    Log.d(TAG, "checkAuthState: Timeout after ${elapsed}ms, state still NotReady")
-                    break
+            val currentState = if (initialState is PrivyAuthState.NotReady) {
+                val resolved = withTimeoutOrNull(10_000L) {
+                    authStateFlow.first { it !is PrivyAuthState.NotReady }
                 }
-                Log.d(TAG, "checkAuthState: Waiting for ready state (elapsed: ${elapsed}ms)")
-                kotlinx.coroutines.delay(delayMs)
-                // Increase delay up to 500ms to reduce polling frequency
-                delayMs = minOf(delayMs + 50, 500L)
-                currentState = authStateFlow.value
+                if (resolved == null) {
+                    Log.d(TAG, "checkAuthState: Timeout after 10s, state still NotReady")
+                }
+                resolved ?: authStateFlow.value
+            } else {
+                initialState
             }
 
             Log.d(TAG, "checkAuthState: Final state = ${currentState::class.simpleName}")

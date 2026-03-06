@@ -24,7 +24,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -102,11 +101,7 @@ fun TimedEditionSection(
             Switch(
                 checked = enabled,
                 onCheckedChange = onToggle,
-                enabled = !isLocked,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = editionColor,
-                    checkedTrackColor = editionColor.copy(alpha = 0.3f)
-                )
+                enabled = !isLocked
             )
         }
 

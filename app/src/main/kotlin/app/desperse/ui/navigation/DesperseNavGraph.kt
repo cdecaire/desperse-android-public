@@ -93,6 +93,8 @@ import app.desperse.ui.screens.settings.StorageCreditsScreen
 import app.desperse.ui.screens.settings.WalletsSettingsScreen
 import app.desperse.ui.components.WalletSheet
 import app.desperse.ui.theme.DesperseSizes
+import app.desperse.ui.components.media.ImageContext
+import app.desperse.ui.components.media.ImageOptimization
 import coil.compose.AsyncImage
 import app.desperse.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -157,7 +159,7 @@ class AuthGateViewModel @Inject constructor(
                         }
                         initAuthInProgress = true
                         // Initialize auth with backend to sync Privy user
-                        // This returns the full user profile
+                        // This returns the full user profile (critical path - must complete first)
                         android.util.Log.d(TAG, "User authenticated, calling initAuth()")
                         android.os.Trace.beginSection("AuthGate.postAuth")
                         val result = userRepository.initAuth()
@@ -172,16 +174,24 @@ class AuthGateViewModel @Inject constructor(
                                 username = user.slug
                             })
                         }
-                        // Start polling for notification counts
-                        notificationCountManager.startPolling()
-                        // Start tracking unread messages
-                        unreadMessageManager.start()
-                        // Sync preferences from server
-                        syncPreferencesFromServer()
-                        // Register push token for notifications
+
+                        // Non-critical post-auth tasks: stagger to avoid
+                        // burst of concurrent requests that overwhelm connections.
+                        // These all launch their own coroutines internally.
+
+                        // Register push token (local check, may skip network)
                         pushTokenManager.ensureTokenRegistered()
-                        // Check if we should show "What's New" after an update
+                        // Check if we should show "What's New" after an update (local only)
                         checkWhatsNew()
+
+                        // Stagger network-heavy tasks to avoid connection overload
+                        notificationCountManager.startPolling()
+                        // Small delay before messages to let notification request complete
+                        kotlinx.coroutines.delay(500)
+                        unreadMessageManager.start()
+                        // Preferences sync is lowest priority
+                        kotlinx.coroutines.delay(500)
+                        syncPreferencesFromServer()
                     }
                     is AuthState.Unauthenticated, is AuthState.Error -> {
                         // Clear user data on logout
@@ -900,8 +910,11 @@ private fun BottomNavItem(
     ) {
         if (avatarUrl != null) {
             // Show avatar for profile
+            val optimizedAvatar = remember(avatarUrl) {
+                ImageOptimization.getOptimizedUrlForContext(avatarUrl, ImageContext.AVATAR)
+            }
             AsyncImage(
-                model = avatarUrl,
+                model = optimizedAvatar,
                 contentDescription = label,
                 modifier = Modifier
                     .size(24.dp)

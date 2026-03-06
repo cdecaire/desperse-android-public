@@ -91,6 +91,13 @@ interface DesperseApi {
         @Path("id") postId: String
     ): Response<ApiEnvelope<PostResult>>
 
+    @GET("api/v1/posts/{id}/collectors")
+    suspend fun getPostCollectors(
+        @Path("id") postId: String,
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int = 50
+    ): Response<ApiEnvelope<FollowListResult>>
+
     // === Likes (Tier 4) ===
     @POST("api/v1/posts/{id}/like")
     suspend fun likePost(

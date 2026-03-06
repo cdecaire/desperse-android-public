@@ -1,5 +1,9 @@
 package app.desperse.ui.screens.messages
 
+import app.desperse.ui.components.EmptyState
+import app.desperse.ui.components.ErrorState
+import app.desperse.ui.components.LoadingState
+import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -171,59 +175,21 @@ fun MessagesScreen(
         ) {
             when {
                 uiState.isLoading && uiState.threads.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    LoadingState()
                 }
 
                 uiState.error != null && uiState.threads.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
-                        ) {
-                            Text(
-                                text = uiState.error ?: "Something went wrong",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            TextButton(onClick = { viewModel.loadThreads() }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
+                    ErrorState(
+                        message = uiState.error ?: "Something went wrong",
+                        onRetry = { viewModel.loadThreads() }
+                    )
                 }
 
                 uiState.threads.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
-                        ) {
-                            FaIcon(
-                                FaIcons.Message,
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                                size = DesperseSizes.iconFeature
-                            )
-                            Spacer(Modifier.height(DesperseSpacing.xs))
-                            Text(
-                                text = "No conversations yet",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
+                    EmptyState(
+                        icon = FaIcons.Message,
+                        message = "No conversations yet"
+                    )
                 }
 
                 else -> {
@@ -783,28 +749,3 @@ private fun NewMessageSelectedUserView(
     }
 }
 
-/**
- * Formats an ISO timestamp to a relative time string (e.g., "2m", "1h", "3d").
- */
-private fun formatRelativeTime(isoTimestamp: String): String {
-    return try {
-        val instant = Instant.parse(isoTimestamp)
-        val now = Instant.now()
-        val duration = Duration.between(instant, now)
-
-        when {
-            duration.seconds < 60 -> "now"
-            duration.toMinutes() < 60 -> "${duration.toMinutes()}m"
-            duration.toHours() < 24 -> "${duration.toHours()}h"
-            duration.toDays() < 7 -> "${duration.toDays()}d"
-            duration.toDays() < 30 -> "${duration.toDays() / 7}w"
-            else -> {
-                val formatter = DateTimeFormatter.ofPattern("MMM d")
-                val zonedDateTime = instant.atZone(java.time.ZoneId.systemDefault())
-                formatter.format(zonedDateTime)
-            }
-        }
-    } catch (e: DateTimeParseException) {
-        ""
-    }
-}

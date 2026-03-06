@@ -1,5 +1,8 @@
 package app.desperse.ui.screens.explore
 
+import app.desperse.ui.components.ErrorState
+import app.desperse.ui.components.LoadingMoreIndicator
+import app.desperse.ui.components.LoadingState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -62,6 +65,8 @@ import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.PostCard
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
+import app.desperse.ui.components.media.ImageContext
+import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSpacing
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -159,41 +164,14 @@ fun ExploreScreen(
                 }
 
                 uiState.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    }
+                    LoadingState()
                 }
 
                 uiState.error != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
-                        ) {
-                            FaIcon(
-                                icon = FaIcons.TriangleExclamation,
-                                size = 48.dp,
-                                tint = MaterialTheme.colorScheme.error,
-                                style = FaIconStyle.Solid
-                            )
-                            Text(
-                                text = uiState.error!!,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            DesperseTextButton(
-                                text = "Retry",
-                                onClick = { viewModel.load() },
-                                variant = ButtonVariant.Default
-                            )
-                        }
-                    }
+                    ErrorState(
+                        message = uiState.error!!,
+                        onRetry = { viewModel.load() }
+                    )
                 }
 
                 else -> {
@@ -235,15 +213,13 @@ fun ExploreScreen(
                         // Trending Posts
                         items(
                             items = uiState.trendingPosts,
-                            key = { it.id }
+                            key = { it.id },
+                            contentType = { "post" }
                         ) { post ->
-                            PostCard(
-                                post = post,
-                                onClick = { onPostClick(post.id) },
-                                onUserClick = { onUserClick(post.user.slug) },
-                                onLikeClick = { /* TODO: Handle like */ },
-                                onCollectClick = { /* TODO: Handle collect */ },
-                                onReport = {
+                            val onClickStable = remember(post.id) { { onPostClick(post.id) } }
+                            val onUserClickStable = remember(post.user.slug) { { onUserClick(post.user.slug) } }
+                            val onReportStable = remember(post.id) {
+                                {
                                     reportPostId = post.id
                                     reportContentPreview = ReportContentPreview(
                                         userName = post.user.displayName ?: post.user.slug,
@@ -253,24 +229,19 @@ fun ExploreScreen(
                                     )
                                     showReportSheet = true
                                 }
+                            }
+                            PostCard(
+                                post = post,
+                                onClick = onClickStable,
+                                onUserClick = onUserClickStable,
+                                onLikeClick = { /* TODO: Handle like */ },
+                                onCollectClick = { /* TODO: Handle collect */ },
+                                onReport = onReportStable
                             )
                         }
 
-                        // Loading more indicator
                         if (uiState.isLoadingMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(DesperseSpacing.lg),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                }
-                            }
+                            item { LoadingMoreIndicator() }
                         }
 
                         // Empty state
@@ -391,9 +362,10 @@ private fun SuggestedCreatorsSection(
                 items = creators,
                 key = { it.id }
             ) { creator ->
+                val onClickStable = remember(creator.usernameSlug) { { onCreatorClick(creator.usernameSlug) } }
                 CreatorItem(
                     creator = creator,
-                    onClick = { onCreatorClick(creator.usernameSlug) }
+                    onClick = onClickStable
                 )
             }
         }
@@ -428,11 +400,17 @@ private fun CreatorItem(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 if (creator.avatarUrl != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(creator.avatarUrl)
+                    val optimizedUrl = remember(creator.avatarUrl) {
+                        ImageOptimization.getOptimizedUrlForContext(creator.avatarUrl, ImageContext.AVATAR)
+                    }
+                    val imageRequest = remember(optimizedUrl) {
+                        ImageRequest.Builder(context)
+                            .data(optimizedUrl)
                             .crossfade(true)
-                            .build(),
+                            .build()
+                    }
+                    AsyncImage(
+                        model = imageRequest,
                         contentDescription = creator.displayName ?: creator.usernameSlug,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -517,7 +495,8 @@ private fun SearchResults(
 
             items(
                 items = users,
-                key = { "user_${it.id}" }
+                key = { "user_${it.id}" },
+                contentType = { "search_user" }
             ) { user ->
                 SearchUserItem(
                     user = user,
@@ -550,15 +529,19 @@ private fun SearchResults(
 
             items(
                 items = posts,
-                key = { "post_${it.id}" }
+                key = { "post_${it.id}" },
+                contentType = { "search_post" }
             ) { post ->
+                val onClickStable = remember(post.id) { { onPostClick(post.id) } }
+                val onUserClickStable = remember(post.user.slug) { { onUserClick(post.user.slug) } }
+                val onReportStable = remember(post) { { onReportPost(post) } }
                 PostCard(
                     post = post,
-                    onClick = { onPostClick(post.id) },
-                    onUserClick = { onUserClick(post.user.slug) },
+                    onClick = onClickStable,
+                    onUserClick = onUserClickStable,
                     onLikeClick = { /* TODO: Handle like */ },
                     onCollectClick = { /* TODO: Handle collect */ },
-                    onReport = { onReportPost(post) }
+                    onReport = onReportStable
                 )
             }
         }
@@ -587,11 +570,17 @@ private fun SearchUserItem(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             if (user.avatarUrl != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(user.avatarUrl)
+                val optimizedUrl = remember(user.avatarUrl) {
+                    ImageOptimization.getOptimizedUrlForContext(user.avatarUrl, ImageContext.AVATAR)
+                }
+                val imageRequest = remember(optimizedUrl) {
+                    ImageRequest.Builder(context)
+                        .data(optimizedUrl)
                         .crossfade(true)
-                        .build(),
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
                     contentDescription = user.displayName ?: user.usernameSlug,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

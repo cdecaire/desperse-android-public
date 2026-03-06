@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,10 +44,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import app.desperse.data.dto.response.FollowUser
 import app.desperse.ui.components.ButtonVariant
 import app.desperse.ui.components.DesperseTextButton
+import app.desperse.ui.components.EmptyState
+import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.GeometricAvatar
 import app.desperse.ui.components.FaIcon
-import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.components.LoadingMoreIndicator
+import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.media.ImageContext
+import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSpacing
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -109,65 +115,28 @@ fun FollowListScreen(
     ) { padding ->
         when {
             uiState.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                LoadingState(modifier = Modifier.padding(padding))
             }
 
             uiState.error != null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
-                    ) {
-                        FaIcon(
-                            icon = FaIcons.TriangleExclamation,
-                            size = 48.dp,
-                            tint = MaterialTheme.colorScheme.error,
-                            style = FaIconStyle.Solid
-                        )
-                        Text(
-                            text = uiState.error!!,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        DesperseTextButton(
-                            text = "Retry",
-                            onClick = { viewModel.load(slug, listType) },
-                            variant = ButtonVariant.Default
-                        )
-                    }
-                }
+                ErrorState(
+                    message = uiState.error!!,
+                    onRetry = { viewModel.load(slug, listType) },
+                    modifier = Modifier.padding(padding)
+                )
             }
 
             uiState.users.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val emptyMessage = when (listType) {
-                        FollowListType.Followers -> "No followers yet"
-                        FollowListType.Following -> "Not following anyone"
-                        FollowListType.Collectors -> "No collectors yet"
-                    }
-                    Text(
-                        text = emptyMessage,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                val emptyMessage = when (listType) {
+                    FollowListType.Followers -> "No followers yet"
+                    FollowListType.Following -> "Not following anyone"
+                    FollowListType.Collectors -> "No collectors yet"
                 }
+                EmptyState(
+                    icon = FaIcons.Users,
+                    message = emptyMessage,
+                    modifier = Modifier.padding(padding)
+                )
             }
 
             else -> {
@@ -180,31 +149,22 @@ fun FollowListScreen(
                 ) {
                     items(
                         items = uiState.users,
-                        key = { it.id }
+                        key = { it.id },
+                        contentType = { "follow_user" }
                     ) { user ->
+                        val onUserClickStable = remember(user.slug) { { onUserClick(user.slug) } }
+                        val onFollowClickStable = remember(user.id) { { viewModel.toggleFollow(user.id) } }
                         FollowUserItem(
                             user = user,
                             isCurrentUser = user.id == viewModel.currentUserId,
-                            onUserClick = { onUserClick(user.slug) },
-                            onFollowClick = { viewModel.toggleFollow(user.id) },
+                            onUserClick = onUserClickStable,
+                            onFollowClick = onFollowClickStable,
                             isFollowLoading = uiState.followLoadingIds.contains(user.id)
                         )
                     }
 
                     if (uiState.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(DesperseSpacing.lg),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            }
-                        }
+                        item { LoadingMoreIndicator() }
                     }
                 }
             }
@@ -237,11 +197,17 @@ private fun FollowUserItem(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             if (user.avatarUrl != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(user.avatarUrl)
+                val optimizedUrl = remember(user.avatarUrl) {
+                    ImageOptimization.getOptimizedUrlForContext(user.avatarUrl, ImageContext.AVATAR)
+                }
+                val imageRequest = remember(optimizedUrl) {
+                    ImageRequest.Builder(context)
+                        .data(optimizedUrl)
                         .crossfade(true)
-                        .build(),
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
                     contentDescription = user.displayName ?: user.slug,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

@@ -247,6 +247,15 @@ object FaIcons {
     const val Ethereum = "\uf42e"
 }
 
+/** Shared base style for all FA icons — avoids allocation per icon per recomposition */
+private val FaIconBaseStyle = TextStyle.Default.copy(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both
+    )
+)
+
 /**
  * FontAwesome Icon Composable
  *
@@ -293,17 +302,7 @@ fun FaIcon(
             textAlign = TextAlign.Center,
             maxLines = 1,
             lineHeight = fontSizeSp,
-            style = TextStyle.Default.copy(
-                // Remove extra font padding that causes clipping
-                platformStyle = PlatformTextStyle(
-                    includeFontPadding = false
-                ),
-                // Trim line height to match the font size exactly
-                lineHeightStyle = LineHeightStyle(
-                    alignment = LineHeightStyle.Alignment.Center,
-                    trim = LineHeightStyle.Trim.Both
-                )
-            )
+            style = FaIconBaseStyle
         )
     }
 }

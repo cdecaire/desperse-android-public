@@ -27,9 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -80,9 +78,6 @@ fun WalletSheet(
     onDismiss: () -> Unit,
     viewModel: WalletViewModel = hiltViewModel()
 ) {
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
-    )
     var activeTab by remember { mutableStateOf("tokens") }
     var nftLayout by remember { mutableStateOf("grid") } // "grid" or "list"
     var showDepositSheet by remember { mutableStateOf(false) }
@@ -96,31 +91,10 @@ fun WalletSheet(
         }
     }
 
-    if (isOpen) {
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            dragHandle = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = DesperseSpacing.md),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(32.dp)
-                            .height(4.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                shape = RoundedCornerShape(2.dp)
-                            )
-                    )
-                }
-            }
-        ) {
+    DesperseBottomSheet(
+        isOpen = isOpen,
+        onDismiss = onDismiss
+    ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -190,7 +164,6 @@ fun WalletSheet(
                     }
                 }
             }
-        }
 
         // Deposit Sheet
         if (showDepositSheet && primaryAddress != null) {

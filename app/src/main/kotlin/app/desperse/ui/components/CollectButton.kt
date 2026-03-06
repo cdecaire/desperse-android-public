@@ -17,7 +17,8 @@ import androidx.compose.ui.unit.dp
 import app.desperse.data.model.CollectState
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
-import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneCollectible
+import app.desperse.ui.util.formatCount
 
 /**
  * Collect button for free collectibles (cNFTs) - COMPACT FORMAT
@@ -39,7 +40,7 @@ fun CollectButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val toneColor = DesperseTones.Collectible
+    val toneColor = toneCollectible()
 
     // Determine display state - isSuccess takes priority over isFailed
     val isInProgress = collectState is CollectState.Preparing || collectState is CollectState.Confirming
@@ -100,16 +101,5 @@ fun CollectButton(
                 color = contentColor
             )
         }
-    }
-}
-
-/**
- * Format count (1.2k, 1.5M, etc.)
- */
-private fun formatCount(count: Int): String {
-    return when {
-        count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
-        count >= 1_000 -> "%.1fk".format(count / 1_000.0)
-        else -> count.toString()
     }
 }

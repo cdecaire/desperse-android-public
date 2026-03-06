@@ -16,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -162,11 +161,7 @@ fun EditionOptionsCard(
             Switch(
                 checked = maxSupplyEnabled,
                 onCheckedChange = onMaxSupplyToggle,
-                enabled = pricingEnabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = editionColor,
-                    checkedTrackColor = editionColor.copy(alpha = 0.3f)
-                )
+                enabled = pricingEnabled
             )
         }
 
@@ -202,11 +197,7 @@ fun EditionOptionsCard(
                 }
                 Switch(
                     checked = protectDownload,
-                    onCheckedChange = onProtectDownloadChange,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = editionColor,
-                        checkedTrackColor = editionColor.copy(alpha = 0.3f)
-                    )
+                    onCheckedChange = onProtectDownloadChange
                 )
             }
         }

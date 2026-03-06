@@ -36,6 +36,12 @@ import app.desperse.ui.theme.DesperseComponentSpacing
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneCollectible
+import app.desperse.ui.theme.toneEdition
+import app.desperse.ui.theme.toneInfo
+import app.desperse.ui.theme.toneLike
+import app.desperse.ui.util.formatCount
+import app.desperse.ui.util.formatRelativeTime
 import app.desperse.ui.util.MintWindowPhase
 import app.desperse.ui.util.MintWindowUtils
 
@@ -175,8 +181,8 @@ private fun PostCardHeader(
     val typeLabel = getPostTypeLabel(post)
     val typeIcon = getPostTypeIcon(post)
     val typeTone = when (post.type) {
-        "collectible" -> DesperseTones.Collectible
-        "edition" -> DesperseTones.Edition
+        "collectible" -> toneCollectible()
+        "edition" -> toneEdition()
         else -> null
     }
 
@@ -250,7 +256,7 @@ private fun PostCardHeader(
                             size = 12.dp,
                             tint = typeTone,
                             style = FaIconStyle.Solid,
-                            contentDescription = null
+                            contentDescription = typeLabel
                         )
                     }
                     Text(
@@ -270,7 +276,7 @@ private fun PostCardHeader(
                     FaIcon(
                         icon = FaIcons.Database,
                         size = 10.dp,
-                        tint = DesperseTones.Info,
+                        tint = toneInfo(),
                         style = FaIconStyle.Solid,
                         contentDescription = "Permanent storage"
                     )
@@ -416,7 +422,7 @@ private fun PostCardActions(
                 icon = FaIcons.Heart,
                 count = post.likeCount,
                 isActive = post.isLiked,
-                activeColor = DesperseTones.Like,
+                activeColor = toneLike(),
                 onClick = onLikeClick,
                 contentDescription = if (post.isLiked) "Unlike" else "Like",
                 style = if (post.isLiked) FaIconStyle.Solid else FaIconStyle.Regular
@@ -516,7 +522,7 @@ private fun BuyButton(
     mintPhase: MintWindowPhase = MintWindowPhase.None,
     onClick: () -> Unit
 ) {
-    val toneColor = DesperseTones.Edition
+    val toneColor = toneEdition()
     val isSoldOut = maxSupply != null && maxSupply > 0 && currentSupply >= maxSupply
     val isMintWindowBlocked = mintPhase is MintWindowPhase.Scheduled || mintPhase is MintWindowPhase.Ended
 
@@ -634,35 +640,3 @@ private fun PostCardCaption(
 /**
  * Format relative time (simplified)
  */
-private fun formatRelativeTime(isoDate: String): String {
-    return try {
-        val instant = java.time.Instant.parse(isoDate)
-        val now = java.time.Instant.now()
-        val seconds = java.time.temporal.ChronoUnit.SECONDS.between(instant, now)
-
-        when {
-            seconds < 60 -> "now"
-            seconds < 3600 -> "${seconds / 60}m"
-            seconds < 86400 -> "${seconds / 3600}h"
-            seconds < 604800 -> "${seconds / 86400}d"
-            seconds < 2592000 -> "${seconds / 604800}w"
-            else -> {
-                val date = java.time.LocalDate.ofInstant(instant, java.time.ZoneId.systemDefault())
-                "${date.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${date.dayOfMonth}"
-            }
-        }
-    } catch (e: Exception) {
-        ""
-    }
-}
-
-/**
- * Format count (1.2k, 1.5M, etc.)
- */
-private fun formatCount(count: Int): String {
-    return when {
-        count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
-        count >= 1_000 -> "%.1fk".format(count / 1_000.0)
-        else -> count.toString()
-    }
-}

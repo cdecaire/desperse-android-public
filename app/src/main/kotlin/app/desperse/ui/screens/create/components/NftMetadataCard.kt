@@ -16,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -168,11 +167,7 @@ fun NftMetadataCard(
                         Switch(
                             checked = isMutable,
                             onCheckedChange = onMutableChange,
-                            enabled = mutabilityEditable,
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = collectibleColor,
-                                checkedTrackColor = collectibleColor.copy(alpha = 0.3f)
-                            )
+                            enabled = mutabilityEditable
                         )
                     }
                 }
