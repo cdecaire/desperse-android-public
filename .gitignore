@@ -67,3 +67,5 @@ nul
 .claude/
 .agents/
 skills-lock.json
+AGENTS.md
+.gradle-user-home/

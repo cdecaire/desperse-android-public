@@ -1,13 +1,14 @@
 package app.desperse.ui.screens.feed
 
+import android.app.Activity
 import android.os.Trace
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.desperse.core.auth.PrivyAuthManager
 import app.desperse.core.network.BlockhashExpiredException
 import app.desperse.core.network.InsufficientFundsException
-import app.desperse.core.network.SolanaRpcClient
+import app.desperse.core.wallet.InstalledMwaWallet
+import app.desperse.core.wallet.MwaError
 import app.desperse.core.wallet.TransactionWalletManager
 import app.desperse.data.NotificationCountManager
 import app.desperse.data.PostUpdate
@@ -41,15 +42,17 @@ data class FeedUiState(
     val error: String? = null,
     /** Timestamp of last successful fetch per tab - used for stale time logic */
     val lastFetchTimeByTab: Map<String, Long> = emptyMap(),
-    val currentUserId: String? = null
+    val currentUserId: String? = null,
+    // Wallet picker for external wallet selection (edition purchases)
+    val showWalletPicker: Boolean = false,
+    val installedWallets: List<InstalledMwaWallet> = emptyList(),
+    val pendingPurchasePostId: String? = null
 )
 
 @HiltViewModel
 class FeedViewModel @Inject constructor(
     private val postRepository: PostRepository,
     private val postUpdateManager: PostUpdateManager,
-    private val privyAuthManager: PrivyAuthManager,
-    private val solanaRpcClient: SolanaRpcClient,
     private val notificationCountManager: NotificationCountManager,
     private val toastManager: ToastManager,
     private val userRepository: UserRepository,
@@ -190,7 +193,7 @@ class FeedViewModel @Inject constructor(
                         applyLikeUpdate(update.postId, update.isLiked, update.likeCount)
                     }
                     is PostUpdate.CollectUpdate -> {
-                        applyCollectUpdate(update.postId, update.isCollected, update.collectCount)
+                        applyCollectUpdate(update.postId, update.isCollected, update.collectCount, update.currentSupply)
                     }
                     is PostUpdate.CommentCountUpdate -> {
                         applyCommentCountUpdate(update.postId, update.commentCount)
@@ -220,11 +223,15 @@ class FeedViewModel @Inject constructor(
         }
     }
 
-    private fun applyCollectUpdate(postId: String, isCollected: Boolean, collectCount: Int) {
+    private fun applyCollectUpdate(postId: String, isCollected: Boolean, collectCount: Int, currentSupply: Int? = null) {
         _uiState.update { currentState ->
             val updatedPosts = currentState.posts.map { post ->
                 if (post.id == postId) {
-                    post.copy(isCollected = isCollected, collectCount = collectCount)
+                    post.copy(
+                        isCollected = isCollected,
+                        collectCount = collectCount,
+                        currentSupply = currentSupply ?: post.currentSupply
+                    )
                 } else {
                     post
                 }
@@ -526,9 +533,14 @@ class FeedViewModel @Inject constructor(
 
     /**
      * Purchase an edition (paid NFT).
-     * Flow: prepare → sign → broadcast → submit → poll for confirmation
+     * Uses TransactionWalletManager for wallet-aware signing (embedded + MWA).
+     *
+     * @param postId The post to purchase
+     * @param activity Required for MWA wallets to launch the wallet app
      */
-    fun purchasePost(postId: String) {
+    private var pendingPurchaseActivity: Activity? = null
+
+    fun purchasePost(postId: String, activity: Activity) {
         val post = _uiState.value.posts.find { it.id == postId } ?: return
         if (post.type != "edition") return
 
@@ -544,68 +556,79 @@ class FeedViewModel @Inject constructor(
             return
         }
 
+        // Check wallet availability before starting
+        if (!transactionWalletManager.isActiveWalletAvailable()) {
+            val message = "No compatible wallet app found. Please install a Solana wallet."
+            updatePurchaseState(postId, PurchaseState.Failed(message, canRetry = false))
+            toastManager.showError(message)
+            return
+        }
+
+        // If external wallet package is unknown, show wallet picker
+        if (transactionWalletManager.needsWalletSelection()) {
+            pendingPurchaseActivity = activity
+            val wallets = transactionWalletManager.getInstalledExternalWallets()
+            _uiState.update { it.copy(
+                showWalletPicker = true,
+                installedWallets = wallets,
+                pendingPurchasePostId = postId
+            ) }
+            return
+        }
+
+        val walletAddress = transactionWalletManager.getActiveWalletAddress()
+
         viewModelScope.launch {
             // Step 1: Get unsigned transaction from server
             updatePurchaseState(postId, PurchaseState.Preparing)
-            val walletAddress = transactionWalletManager.getActiveWalletAddress()
             Log.d(TAG, "Step 1: Requesting unsigned transaction for post $postId, wallet=${walletAddress?.take(8)}...")
 
             postRepository.buyEdition(postId, walletAddress)
                 .onSuccess { buyResult ->
                     Log.d(TAG, "Got unsigned tx, purchaseId=${buyResult.purchaseId}")
 
-                    // Step 2: Sign the transaction with Privy
+                    // Step 2: Sign and broadcast via the active wallet
                     updatePurchaseState(postId, PurchaseState.Signing)
-                    Log.d(TAG, "Step 2: Signing transaction with Privy wallet")
+                    Log.d(TAG, "Step 2: Signing and broadcasting via active wallet")
 
-                    privyAuthManager.signTransaction(buyResult.unsignedTxBase64)
-                        .onSuccess { signedTxBase64 ->
-                            Log.d(TAG, "Transaction signed successfully")
+                    transactionWalletManager.signAndSendTransaction(buyResult.unsignedTxBase64, activity)
+                        .onSuccess { txSignature ->
+                            Log.d(TAG, "Transaction signed and broadcast, signature=$txSignature")
 
-                            // Step 3: Broadcast signed transaction to Solana
-                            updatePurchaseState(postId, PurchaseState.Broadcasting)
-                            Log.d(TAG, "Step 3: Broadcasting transaction to Solana")
+                            // Step 3: Submit signature to server for tracking
+                            updatePurchaseState(postId, PurchaseState.Submitting)
+                            Log.d(TAG, "Step 3: Submitting signature to server")
 
-                            solanaRpcClient.sendTransaction(signedTxBase64)
-                                .onSuccess { txSignature ->
-                                    Log.d(TAG, "Transaction broadcast, signature=$txSignature")
-
-                                    // Step 4: Submit signature to server
-                                    updatePurchaseState(postId, PurchaseState.Submitting)
-                                    Log.d(TAG, "Step 4: Submitting signature to server")
-
-                                    postRepository.submitPurchaseSignature(buyResult.purchaseId, txSignature)
-                                        .onSuccess { submitResult ->
-                                            Log.d(TAG, "Signature submitted, status=${submitResult.status}")
-
-                                            // Step 5: Poll for confirmation
-                                            updatePurchaseState(postId, PurchaseState.Confirming(buyResult.purchaseId))
-                                            startPurchasePolling(postId, buyResult.purchaseId)
-                                        }
-                                        .onFailure { error ->
-                                            Log.e(TAG, "Submit failed: ${error.message}")
-                                            // Transaction was already broadcast, so we should still poll
-                                            Log.w(TAG, "Starting polling anyway since tx was broadcast")
-                                            updatePurchaseState(postId, PurchaseState.Confirming(buyResult.purchaseId))
-                                            startPurchasePolling(postId, buyResult.purchaseId)
-                                        }
+                            postRepository.submitPurchaseSignature(buyResult.purchaseId, txSignature)
+                                .onSuccess { submitResult ->
+                                    Log.d(TAG, "Signature submitted, status=${submitResult.status}")
                                 }
                                 .onFailure { error ->
-                                    Log.e(TAG, "Broadcast failed: ${error.message}")
-                                    val errorMessage = when (error) {
-                                        is BlockhashExpiredException -> "Transaction expired. Please try again."
-                                        is InsufficientFundsException -> "Insufficient funds for this purchase."
-                                        else -> error.message ?: "Failed to broadcast transaction"
-                                    }
-                                    updatePurchaseState(postId, PurchaseState.Failed(errorMessage, canRetry = true))
-                                    toastManager.showError(errorMessage)
+                                    // Transaction was already broadcast, so continue to polling
+                                    Log.w(TAG, "Submit failed (${error.message}), polling anyway since tx was broadcast")
                                 }
+
+                            // Step 4: Poll for confirmation (regardless of submit result)
+                            updatePurchaseState(postId, PurchaseState.Confirming(buyResult.purchaseId))
+                            startPurchasePolling(postId, buyResult.purchaseId)
                         }
                         .onFailure { error ->
-                            Log.e(TAG, "Signing failed: ${error.message}")
-                            val message = error.message ?: "Failed to sign transaction"
-                            updatePurchaseState(postId, PurchaseState.Failed(message))
-                            toastManager.showError(message)
+                            Log.e(TAG, "Sign+broadcast failed: ${error.message}")
+                            val errorMessage = when (error) {
+                                is BlockhashExpiredException -> "Transaction expired. Please try again."
+                                is InsufficientFundsException -> "Insufficient funds for this purchase."
+                                is MwaError.UserCancelled -> "Transaction cancelled."
+                                is MwaError.NoWalletInstalled -> "No compatible wallet app found."
+                                is MwaError.Timeout -> "Wallet connection timed out. Please try again."
+                                is MwaError.WalletRejected -> "Wallet rejected the transaction."
+                                is MwaError.SessionTerminated -> "Wallet session ended. Please try again."
+                                else -> error.message ?: "Failed to sign transaction"
+                            }
+                            updatePurchaseState(postId, PurchaseState.Failed(
+                                errorMessage,
+                                canRetry = error !is MwaError.NoWalletInstalled
+                            ))
+                            toastManager.showError(errorMessage)
                         }
                 }
                 .onFailure { error ->
@@ -615,6 +638,23 @@ class FeedViewModel @Inject constructor(
                     toastManager.showError(message)
                 }
         }
+    }
+
+    fun onWalletSelectedForTransaction(packageName: String) {
+        val activity = pendingPurchaseActivity
+        val postId = _uiState.value.pendingPurchasePostId
+        viewModelScope.launch {
+            transactionWalletManager.setWalletPackage(packageName)
+            _uiState.update { it.copy(showWalletPicker = false, pendingPurchasePostId = null) }
+            if (activity != null && postId != null) {
+                purchasePost(postId, activity)
+            }
+        }
+    }
+
+    fun dismissWalletPicker() {
+        _uiState.update { it.copy(showWalletPicker = false, pendingPurchasePostId = null) }
+        pendingPurchaseActivity = null
     }
 
     private fun startPurchasePolling(postId: String, purchaseId: String) {
@@ -697,11 +737,11 @@ class FeedViewModel @Inject constructor(
             currentState.copy(posts = updatedPosts)
         }
 
-        // Broadcast update to other screens
+        // Broadcast update to other screens (including currentSupply for editions)
         viewModelScope.launch {
             val post = _uiState.value.posts.find { it.id == postId }
             if (post != null) {
-                postUpdateManager.emitCollectUpdate(postId, post.isCollected, post.collectCount)
+                postUpdateManager.emitCollectUpdate(postId, post.isCollected, post.collectCount, post.currentSupply)
             }
         }
     }
@@ -738,6 +778,7 @@ class FeedViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        pendingPurchaseActivity = null
         stopPeriodicRefresh()
         pollingJobs.values.forEach { it.cancel() }
         pollingJobs.clear()

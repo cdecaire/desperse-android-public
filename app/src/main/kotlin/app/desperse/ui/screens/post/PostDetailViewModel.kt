@@ -207,7 +207,8 @@ class PostDetailViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(
                             post = currentPost.copy(
                                 isCollected = update.isCollected,
-                                collectCount = update.collectCount
+                                collectCount = update.collectCount,
+                                currentSupply = update.currentSupply ?: currentPost.currentSupply
                             ),
                             collectState = if (update.isCollected) CollectState.Success else _uiState.value.collectState
                         )
@@ -604,15 +605,17 @@ class PostDetailViewModel @Inject constructor(
                             "confirmed" -> {
                                 Log.d(TAG, "Purchase confirmed! nftMint=${status.nftMint}")
                                 val newCollectCount = (_uiState.value.post?.collectCount ?: 0) + 1
+                                val newCurrentSupply = (_uiState.value.post?.currentSupply ?: 0) + 1
                                 _uiState.value = _uiState.value.copy(
                                     purchaseState = PurchaseState.Success,
                                     post = _uiState.value.post?.copy(
                                         isCollected = true,
-                                        collectCount = newCollectCount
+                                        collectCount = newCollectCount,
+                                        currentSupply = newCurrentSupply
                                     )
                                 )
-                                // Broadcast update to other screens
-                                postUpdateManager.emitCollectUpdate(postId, true, newCollectCount)
+                                // Broadcast update to other screens (include currentSupply for editions)
+                                postUpdateManager.emitCollectUpdate(postId, true, newCollectCount, newCurrentSupply)
                                 toastManager.showSuccess("Purchase complete!")
                                 return@launch
                             }

@@ -687,7 +687,7 @@ class ProfileViewModel @Inject constructor(
                         applyLikeUpdate(update.postId, update.isLiked, update.likeCount)
                     }
                     is PostUpdate.CollectUpdate -> {
-                        applyCollectUpdate(update.postId, update.isCollected, update.collectCount)
+                        applyCollectUpdate(update.postId, update.isCollected, update.collectCount, update.currentSupply)
                     }
                     is PostUpdate.CommentCountUpdate -> {
                         applyCommentCountUpdate(update.postId, update.commentCount)
@@ -717,11 +717,15 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    private fun applyCollectUpdate(postId: String, isCollected: Boolean, collectCount: Int) {
+    private fun applyCollectUpdate(postId: String, isCollected: Boolean, collectCount: Int, currentSupply: Int? = null) {
         _uiState.update { currentState ->
             val updatedPosts = currentState.posts.map { post ->
                 if (post.id == postId) {
-                    post.copy(isCollected = isCollected, collectCount = collectCount)
+                    post.copy(
+                        isCollected = isCollected,
+                        collectCount = collectCount,
+                        currentSupply = currentSupply ?: post.currentSupply
+                    )
                 } else {
                     post
                 }

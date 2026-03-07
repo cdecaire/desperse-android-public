@@ -57,16 +57,19 @@ import app.desperse.R
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.PurchaseState
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.app.Activity
 import app.desperse.ui.components.ButtonVariant
 import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.DesperseTextButton
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.CommentSheet
+import app.desperse.ui.components.InstalledWallet
 import app.desperse.ui.components.PostCard
 import app.desperse.ui.components.PostCardSkeleton
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
+import app.desperse.ui.components.WalletPickerSheet
 import app.desperse.ui.components.WalletSheet
 import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.theme.DesperseSizes
@@ -96,6 +99,7 @@ fun FeedScreen(
     val pullRefreshState = rememberPullToRefreshState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val activity = androidx.compose.ui.platform.LocalContext.current as Activity
 
     // Lazy list state for scroll detection
     val listState = rememberLazyListState()
@@ -191,6 +195,23 @@ fun FeedScreen(
             isOpen = showWalletSheet,
             onDismiss = { showWalletSheet = false }
         )
+
+        // Wallet Picker Sheet (shown when external wallet package is unknown for purchases)
+        if (uiState.showWalletPicker) {
+            WalletPickerSheet(
+                wallets = uiState.installedWallets.map { mwaWallet ->
+                    InstalledWallet(
+                        packageName = mwaWallet.packageName,
+                        displayName = mwaWallet.displayName,
+                        walletClientType = mwaWallet.walletClientType
+                    )
+                },
+                onWalletSelected = { wallet ->
+                    viewModel.onWalletSelectedForTransaction(wallet.packageName)
+                },
+                onDismiss = { viewModel.dismissWalletPicker() }
+            )
+        }
 
         // Report Sheet
         ReportSheet(
@@ -333,7 +354,7 @@ fun FeedScreen(
                             val onCollectClickStable = remember(post.id, post.type) {
                                 {
                                     when (post.type) {
-                                        "edition" -> viewModel.purchasePost(post.id)
+                                        "edition" -> viewModel.purchasePost(post.id, activity)
                                         "collectible" -> viewModel.collectPost(post.id)
                                         else -> {} // Regular posts have no collect action
                                     }

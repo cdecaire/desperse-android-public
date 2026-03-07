@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -105,6 +107,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** State for backend bootstrap after Privy authentication */
+sealed interface BootstrapState {
+    data object Idle : BootstrapState
+    data object Syncing : BootstrapState
+    data object Ready : BootstrapState
+    data class Failed(val message: String) : BootstrapState
+}
+
 @HiltViewModel
 class AuthGateViewModel @Inject constructor(
     private val privyAuthManager: PrivyAuthManager,
@@ -124,6 +134,10 @@ class AuthGateViewModel @Inject constructor(
     /** Whether to show the "What's New" sheet */
     private val _showWhatsNew = MutableStateFlow(false)
     val showWhatsNew: StateFlow<Boolean> = _showWhatsNew.asStateFlow()
+
+    /** Backend bootstrap state — gates the main app UI */
+    private val _bootstrapState = MutableStateFlow<BootstrapState>(BootstrapState.Idle)
+    val bootstrapState: StateFlow<BootstrapState> = _bootstrapState.asStateFlow()
 
     /** The current user's full profile from the API */
     val currentUser = userRepository.currentUser
@@ -158,6 +172,7 @@ class AuthGateViewModel @Inject constructor(
                             return@collect
                         }
                         initAuthInProgress = true
+                        _bootstrapState.value = BootstrapState.Syncing
                         // Initialize auth with backend to sync Privy user
                         // This returns the full user profile (critical path - must complete first)
                         android.util.Log.d(TAG, "User authenticated, calling initAuth()")
@@ -166,6 +181,16 @@ class AuthGateViewModel @Inject constructor(
                         initAuthInProgress = false
                         android.os.Trace.endSection() // AuthGate.postAuth
                         android.util.Log.d(TAG, "initAuth result: ${if (result.isSuccess) "success" else "failure: ${result.exceptionOrNull()?.message}"}")
+
+                        if (result.isFailure) {
+                            val errorMsg = result.exceptionOrNull()?.message ?: "Failed to sync with server"
+                            android.util.Log.e(TAG, "Bootstrap failed: $errorMsg")
+                            _bootstrapState.value = BootstrapState.Failed(errorMsg)
+                            return@collect
+                        }
+
+                        _bootstrapState.value = BootstrapState.Ready
+
                         // Set Sentry user context for crash reports
                         val user = userRepository.currentUser.value
                         if (user != null) {
@@ -196,6 +221,7 @@ class AuthGateViewModel @Inject constructor(
                     is AuthState.Unauthenticated, is AuthState.Error -> {
                         // Clear user data on logout
                         android.util.Log.d(TAG, "User unauthenticated/error, clearing user data")
+                        _bootstrapState.value = BootstrapState.Idle
                         userRepository.clearCurrentUser()
                         // Clear Sentry user context
                         io.sentry.Sentry.setUser(null)
@@ -217,6 +243,34 @@ class AuthGateViewModel @Inject constructor(
                 if (user != null) {
                     ablyManager.connect(user.id)
                 }
+            }
+        }
+    }
+
+    /** Retry bootstrap after a failure */
+    fun retryBootstrap() {
+        _bootstrapState.value = BootstrapState.Syncing
+        viewModelScope.launch {
+            val result = userRepository.initAuth()
+            if (result.isSuccess) {
+                _bootstrapState.value = BootstrapState.Ready
+                val user = userRepository.currentUser.value
+                if (user != null) {
+                    io.sentry.Sentry.setUser(io.sentry.protocol.User().apply {
+                        id = user.id
+                        username = user.slug
+                    })
+                }
+                pushTokenManager.ensureTokenRegistered()
+                checkWhatsNew()
+                notificationCountManager.startPolling()
+                kotlinx.coroutines.delay(500)
+                unreadMessageManager.start()
+                kotlinx.coroutines.delay(500)
+                syncPreferencesFromServer()
+            } else {
+                val errorMsg = result.exceptionOrNull()?.message ?: "Failed to sync with server"
+                _bootstrapState.value = BootstrapState.Failed(errorMsg)
             }
         }
     }
@@ -343,6 +397,7 @@ fun DesperseNavGraph(
     authGateViewModel: AuthGateViewModel
 ) {
     val authState by authGateViewModel.authState.collectAsState()
+    val bootstrapState by authGateViewModel.bootstrapState.collectAsState()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -375,6 +430,71 @@ fun DesperseNavGraph(
             return
         }
         is AuthState.Authenticated -> {
+            // Continue to bootstrap check
+        }
+    }
+
+    // Gate on backend bootstrap — don't show the main app until initAuth succeeds
+    when (bootstrapState) {
+        is BootstrapState.Idle, is BootstrapState.Syncing -> {
+            androidx.compose.material3.Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            return
+        }
+        is BootstrapState.Failed -> {
+            val failedState = bootstrapState as BootstrapState.Failed
+            androidx.compose.material3.Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Unable to connect",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = failedState.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = { authGateViewModel.retryBootstrap() }
+                        ) {
+                            Text("Retry")
+                        }
+                        androidx.compose.material3.TextButton(
+                            onClick = { authGateViewModel.logout() }
+                        ) {
+                            Text(
+                                "Log out",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+            return
+        }
+        is BootstrapState.Ready -> {
             // Continue to main app
         }
     }

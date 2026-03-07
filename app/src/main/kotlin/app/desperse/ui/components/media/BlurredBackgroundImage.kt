@@ -9,35 +9,33 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 
 /**
- * Image component with dynamic aspect ratio and blurred background for portrait images
+ * Image component with aspect ratio handling for feed and detail contexts.
  *
- * Display logic:
- * - Landscape images (wider than tall): Display at natural ratio
- * - Square images: Display at 1:1
- * - Portrait images (up to 4:5): Display at natural ratio
- * - Very tall images (>4:5): Cap at 4:5 with blurred background, image fit inside
+ * Feed mode (fixedAspectRatio != null):
+ * - Fixed 4:5 container with ContentScale.Crop (fills edge-to-edge, crops excess)
+ * - Matches Instagram/Twitter behavior for tall images in feeds
+ *
+ * Detail mode (fixedAspectRatio == null):
+ * - Dynamic aspect ratio from image dimensions (capped at maxAspectRatio)
+ * - ContentScale.Fit so users can see the full uncropped image
  *
  * @param imageUrl URL of the image to display
  * @param maxAspectRatio Maximum height/width ratio (default 1.25 = 4:5)
- * @param fixedAspectRatio If provided, use this fixed ratio (prevents layout shifts during scroll)
+ * @param fixedAspectRatio If provided, use this fixed ratio (feed mode with crop-to-fill)
  * @param contentDescription Accessibility description
  * @param onClick Click handler
  * @param modifier Modifier for the container
@@ -54,13 +52,12 @@ fun BlurredBackgroundImage(
     val context = LocalContext.current
     val minWidthHeightRatio = 1f / maxAspectRatio // 0.8 for 4:5
 
-    // Use fixed aspect ratio if provided (for scroll stability), otherwise dynamic
+    // Use fixed aspect ratio if provided (feed: crop-to-fill), otherwise dynamic (detail: fit)
     val useFixedRatio = fixedAspectRatio != null
     val stableRatio = fixedAspectRatio ?: minWidthHeightRatio
 
     // State for dynamic sizing (only used when fixedAspectRatio is null)
     var displayRatio by remember(imageUrl) { mutableFloatStateOf(stableRatio) }
-    var needsBlurBg by remember(imageUrl) { mutableStateOf(useFixedRatio) }
 
     // Actual ratio to use for layout
     val effectiveRatio = if (useFixedRatio) stableRatio else displayRatio
@@ -87,28 +84,14 @@ fun BlurredBackgroundImage(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        // Blurred background layer (only for tall images or when using fixed ratio)
-        if (needsBlurBg) {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .scale(1.1f)
-                    .blur(20.dp),
-                filterQuality = FilterQuality.Low,
-                contentScale = ContentScale.Crop,
-                alpha = 0.6f
-            )
-        }
-
-        // Main image
+        // Feed: Crop to fill (edge-to-edge, crops excess)
+        // Detail: Fit entire image (letterboxed with black bg)
         AsyncImage(
             model = imageRequest,
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
             filterQuality = FilterQuality.Low,
-            contentScale = if (needsBlurBg) ContentScale.Fit else ContentScale.Crop,
+            contentScale = if (useFixedRatio) ContentScale.Crop else ContentScale.Fit,
             onState = { state ->
                 // Only update dynamic ratio when not using fixed ratio
                 if (!useFixedRatio && state is AsyncImagePainter.State.Success) {
@@ -116,11 +99,6 @@ fun BlurredBackgroundImage(
                     if (size.width > 0 && size.height > 0) {
                         val imageRatio = size.width / size.height
                         val isTooTall = imageRatio < minWidthHeightRatio
-
-                        // Only update state if values changed
-                        if (needsBlurBg != isTooTall) {
-                            needsBlurBg = isTooTall
-                        }
                         val newRatio = if (isTooTall) minWidthHeightRatio else imageRatio
                         if (displayRatio != newRatio) {
                             displayRatio = newRatio

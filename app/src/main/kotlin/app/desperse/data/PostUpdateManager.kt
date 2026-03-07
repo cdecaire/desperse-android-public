@@ -29,8 +29,8 @@ class PostUpdateManager @Inject constructor() {
     /**
      * Emit a collect state change for a post
      */
-    suspend fun emitCollectUpdate(postId: String, isCollected: Boolean, collectCount: Int) {
-        _updates.emit(PostUpdate.CollectUpdate(postId, isCollected, collectCount))
+    suspend fun emitCollectUpdate(postId: String, isCollected: Boolean, collectCount: Int, currentSupply: Int? = null) {
+        _updates.emit(PostUpdate.CollectUpdate(postId, isCollected, collectCount, currentSupply))
     }
 
     /**
@@ -77,7 +77,8 @@ sealed class PostUpdate {
     data class CollectUpdate(
         override val postId: String,
         val isCollected: Boolean,
-        val collectCount: Int
+        val collectCount: Int,
+        val currentSupply: Int? = null
     ) : PostUpdate()
 
     data class CommentCountUpdate(

@@ -27,9 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -90,8 +88,6 @@ fun VideoPlayer(
     var showControls by remember { mutableStateOf(false) }  // Start hidden
     var controlsKey by remember { mutableStateOf(0) }  // For resetting auto-hide timer
     var videoAspectRatio by remember { mutableFloatStateOf(16f / 9f) }
-    var needsBlurredBg by remember { mutableStateOf(useFixedAspectRatio) }
-
     // Fixed ratio for stable scroll (4:5 = 0.8 width/height)
     val fixedRatio = 1f / maxAspectRatio
 
@@ -168,7 +164,6 @@ fun VideoPlayer(
                     // Only update dynamic ratio when not using fixed ratio
                     if (!useFixedAspectRatio) {
                         videoAspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
-                        needsBlurredBg = (videoSize.height.toFloat() / videoSize.width.toFloat()) > maxAspectRatio
                     }
                 }
             }
@@ -201,20 +196,6 @@ fun VideoPlayer(
             .onGloballyPositioned { isVisible = true },
         contentAlignment = Alignment.Center
     ) {
-        // Blurred background for portrait videos
-        if (needsBlurredBg && coverImageRequest != null) {
-            AsyncImage(
-                model = coverImageRequest,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .scale(1.1f)
-                    .blur(24.dp),
-                contentScale = ContentScale.Crop,
-                alpha = 0.6f
-            )
-        }
-
         // Video player - only render when player is ready
         val currentPlayer = exoPlayer
         if (currentPlayer != null) {
@@ -223,10 +204,11 @@ fun VideoPlayer(
                     PlayerView(ctx).apply {
                         player = currentPlayer
                         useController = false
-                        resizeMode = if (needsBlurredBg) {
-                            AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        } else {
+                        // Feed: zoom to fill (crop excess), Detail: fit to show full video
+                        resizeMode = if (useFixedAspectRatio) {
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        } else {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
                         }
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -237,10 +219,10 @@ fun VideoPlayer(
                 modifier = Modifier.fillMaxSize(),
                 update = { playerView ->
                     playerView.player = currentPlayer
-                    playerView.resizeMode = if (needsBlurredBg) {
-                        AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } else {
+                    playerView.resizeMode = if (useFixedAspectRatio) {
                         AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    } else {
+                        AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
                 }
             )
@@ -256,7 +238,7 @@ fun VideoPlayer(
                 model = coverImageRequest,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = if (needsBlurredBg) ContentScale.Fit else ContentScale.Crop
+                contentScale = if (useFixedAspectRatio) ContentScale.Crop else ContentScale.Fit
             )
         }
 

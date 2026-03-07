@@ -110,7 +110,7 @@ fun NotificationsScreen(
         )
     }
 
-    // Load more when scrolling near the end
+    // Load more when scrolling near the end + report visible items for mark-as-read
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo }
             .collect { layoutInfo ->
@@ -119,6 +119,9 @@ fun NotificationsScreen(
                 if (lastVisibleItem >= totalItems - 6 && !uiState.isLoadingMore && uiState.hasMore) {
                     viewModel.loadMore()
                 }
+                // Report visible indices for viewport-driven mark-as-read
+                val visibleIndices = layoutInfo.visibleItemsInfo.map { it.index }
+                viewModel.onVisibleItemsChanged(visibleIndices)
             }
     }
 
