@@ -3,7 +3,8 @@ package app.desperse.ui.screens.notifications
 import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.LoadingMoreIndicator
-import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.NotificationItemSkeleton
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -173,7 +173,12 @@ fun NotificationsScreen(
     ) { padding ->
         when {
             uiState.isLoading && uiState.notifications.isEmpty() -> {
-                LoadingState(modifier = Modifier.padding(padding))
+                val brush = rememberShimmerBrush()
+                Column(modifier = Modifier.padding(padding)) {
+                    repeat(8) {
+                        NotificationItemSkeleton(brush = brush)
+                    }
+                }
             }
 
             uiState.error != null && uiState.notifications.isEmpty() -> {

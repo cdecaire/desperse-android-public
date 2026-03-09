@@ -46,6 +46,7 @@ import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneSuccess
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
@@ -178,7 +179,7 @@ fun TipSheet(
                     FaIcon(
                         icon = FaIcons.CircleCheck,
                         size = 48.dp,
-                        tint = DesperseTones.Success,
+                        tint = toneSuccess(),
                         style = FaIconStyle.Solid
                     )
                     Spacer(modifier = Modifier.height(DesperseSpacing.md))
@@ -186,7 +187,7 @@ fun TipSheet(
                         text = "Tip sent!",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = DesperseTones.Success
+                        color = toneSuccess()
                     )
                 }
                 return@Column

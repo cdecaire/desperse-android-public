@@ -98,7 +98,7 @@ suspend fun <T> safeApiCall(
                 ApiResult.Error(ErrorCode.AUTH_REQUIRED, "Authentication required", requestId, 401)
             }
             response.code() == 429 -> {
-                ApiResult.Error(ErrorCode.RATE_LIMITED, "Too many requests", requestId, 429)
+                ApiResult.Error(ErrorCode.RATE_LIMITED, "Please wait a moment before trying again", requestId, 429)
             }
             response.code() == 404 -> {
                 ApiResult.Error(ErrorCode.NOT_FOUND, "Not found", requestId, 404)

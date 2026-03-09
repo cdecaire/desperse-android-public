@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Use AppCompat theme since the app is Compose-based -->
     <style name="Theme.Desperse" parent="Theme.AppCompat.NoActionBar">
         <!-- Primary colors -->
         <item name="colorPrimary">@color/highlight</item>

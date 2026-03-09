@@ -190,6 +190,7 @@ class ProfileViewModel @Inject constructor(
             userRepository.getUserPosts(profileSlug)
                 .onSuccess { result ->
                     android.util.Log.d(TAG, "Loaded ${result.posts.size} posts, hasMore=${result.hasMore}")
+                    postRepository.cachePosts(result.posts)
                     _uiState.update { it.copy(
                         posts = result.posts,
                         postsHasMore = result.hasMore,

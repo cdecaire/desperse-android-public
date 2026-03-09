@@ -241,7 +241,10 @@ fun MessagingSettingsScreen(
                     IconButton(onClick = onBack) {
                         FaIcon(FaIcons.ArrowLeft, size = 20.dp)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->

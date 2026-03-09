@@ -40,22 +40,48 @@ data class FeedPage(
 class PostRepository @Inject constructor(
     private val api: DesperseApi
 ) {
+    /** In-memory post cache for instant detail view rendering */
+    private val postCache = LinkedHashMap<String, Post>(100, 0.75f, true)
+    private val maxCacheSize = 200
+
+    /** Cache posts from feed/profile loads for instant detail access */
+    fun cachePosts(posts: List<Post>) {
+        synchronized(postCache) {
+            for (post in posts) {
+                postCache[post.id] = post
+            }
+            // Evict oldest entries if over limit (LRU via accessOrder=true)
+            while (postCache.size > maxCacheSize) {
+                postCache.remove(postCache.keys.first())
+            }
+        }
+    }
+
+    /** Get a cached post for instant rendering, or null if not cached */
+    fun getCachedPost(postId: String): Post? = synchronized(postCache) { postCache[postId] }
+
     suspend fun getFeed(tab: String, cursor: String? = null, limit: Int = 20): Result<FeedPage> {
         return when (val result = safeApiCall { api.getPosts(tab, cursor, limit) }) {
-            is ApiResult.Success -> Result.success(
-                FeedPage(
-                    posts = result.data.posts,
-                    hasMore = result.meta?.hasMore ?: false,
-                    nextCursor = result.meta?.nextCursor
+            is ApiResult.Success -> {
+                cachePosts(result.data.posts)
+                Result.success(
+                    FeedPage(
+                        posts = result.data.posts,
+                        hasMore = result.meta?.hasMore ?: false,
+                        nextCursor = result.meta?.nextCursor
+                    )
                 )
-            )
+            }
             is ApiResult.Error -> Result.failure(Exception(result.message))
         }
     }
 
     suspend fun getPost(postId: String): Result<Post> {
         return when (val result = safeApiCall { api.getPost(postId) }) {
-            is ApiResult.Success -> Result.success(result.data.post)
+            is ApiResult.Success -> {
+                synchronized(postCache) { postCache[postId] = result.data.post }
+                Result.success(result.data.post)
+            }
             is ApiResult.Error -> Result.failure(Exception(result.message))
         }
     }

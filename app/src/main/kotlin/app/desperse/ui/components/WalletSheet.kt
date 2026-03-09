@@ -59,11 +59,20 @@ import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import app.desperse.core.preferences.AppPreferences
+import app.desperse.core.preferences.ExplorerOption
+import app.desperse.core.util.openInAppBrowser
 import app.desperse.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
+interface WalletSheetEntryPoint {
+    fun appPreferences(): AppPreferences
+}
 
 /**
  * Wallet Bottom Sheet
@@ -485,6 +494,21 @@ private fun NFTsContent(
     onLayoutChange: (String) -> Unit
 ) {
     val nfts = uiState.nfts
+    val context = LocalContext.current
+    val appPreferences = remember {
+        dagger.hilt.android.EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            WalletSheetEntryPoint::class.java
+        ).appPreferences()
+    }
+    val explorerOption by appPreferences.explorer.collectAsState(initial = ExplorerOption.ORB)
+
+    val onNftClick = remember(explorerOption) {
+        { nft: NFTAsset ->
+            val explorerUrl = explorerOption.getExplorerUrl(nft.mint)
+            context.openInAppBrowser(explorerUrl)
+        }
+    }
 
     if (nfts.isEmpty()) {
         EmptyContent(
@@ -532,8 +556,8 @@ private fun NFTsContent(
 
         // NFT content based on layout
         when (layout) {
-            "grid" -> NFTGridView(nfts)
-            "list" -> NFTListView(nfts)
+            "grid" -> NFTGridView(nfts, onNftClick = onNftClick)
+            "list" -> NFTListView(nfts, onNftClick = onNftClick)
         }
     }
 }
@@ -571,7 +595,7 @@ private fun LayoutToggleButton(
 }
 
 @Composable
-private fun NFTGridView(nfts: List<NFTAsset>) {
+private fun NFTGridView(nfts: List<NFTAsset>, onNftClick: (NFTAsset) -> Unit) {
     Column(
         verticalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
     ) {
@@ -583,6 +607,7 @@ private fun NFTGridView(nfts: List<NFTAsset>) {
                 row.forEach { nft ->
                     NFTCard(
                         nft = nft,
+                        onClick = { onNftClick(nft) },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -596,18 +621,18 @@ private fun NFTGridView(nfts: List<NFTAsset>) {
 }
 
 @Composable
-private fun NFTListView(nfts: List<NFTAsset>) {
+private fun NFTListView(nfts: List<NFTAsset>, onNftClick: (NFTAsset) -> Unit) {
     Column(
         verticalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
     ) {
         nfts.forEach { nft ->
-            NFTListItem(nft = nft)
+            NFTListItem(nft = nft, onClick = { onNftClick(nft) })
         }
     }
 }
 
 @Composable
-private fun NFTListItem(nft: NFTAsset) {
+private fun NFTListItem(nft: NFTAsset, onClick: () -> Unit) {
     val context = LocalContext.current
     val name = nft.name ?: "Unnamed NFT"
     val collection = nft.collectionName
@@ -617,6 +642,7 @@ private fun NFTListItem(nft: NFTAsset) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .padding(DesperseSpacing.sm),
         verticalAlignment = Alignment.CenterVertically
@@ -687,6 +713,7 @@ private fun NFTListItem(nft: NFTAsset) {
 @Composable
 private fun NFTCard(
     nft: NFTAsset,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -697,6 +724,7 @@ private fun NFTCard(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Box(

@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +49,8 @@ import app.desperse.ui.components.GeometricAvatar
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.LoadingMoreIndicator
-import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.UserItemSkeleton
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSpacing
@@ -115,7 +115,12 @@ fun FollowListScreen(
     ) { padding ->
         when {
             uiState.isLoading -> {
-                LoadingState(modifier = Modifier.padding(padding))
+                val brush = rememberShimmerBrush()
+                Column(modifier = Modifier.padding(padding)) {
+                    repeat(8) {
+                        UserItemSkeleton(brush = brush)
+                    }
+                }
             }
 
             uiState.error != null -> {

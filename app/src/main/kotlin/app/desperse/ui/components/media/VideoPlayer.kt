@@ -49,6 +49,7 @@ import coil.request.ImageRequest
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.theme.DesperseMotion
 import app.desperse.ui.theme.DesperseSpacing
 import kotlinx.coroutines.delay
 
@@ -183,7 +184,7 @@ fun VideoPlayer(
         coverUrl?.let { url ->
             ImageRequest.Builder(context)
                 .data(ImageOptimization.getOptimizedUrlForContext(url, ImageContext.FEED_THUMBNAIL))
-                .crossfade(150)
+                .crossfade(DesperseMotion.crossfadeMs)
                 .build()
         }
     }

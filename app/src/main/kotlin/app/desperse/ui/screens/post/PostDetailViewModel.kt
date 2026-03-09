@@ -79,6 +79,15 @@ class PostDetailViewModel @Inject constructor(
     private var periodicRefreshJob: Job? = null
 
     init {
+        // Show cached post instantly (from feed/profile) while fetching fresh data
+        val cached = postRepository.getCachedPost(postId)
+        if (cached != null) {
+            _uiState.value = PostDetailUiState(
+                post = cached,
+                isLoadingPost = false,
+                collectState = if (cached.isCollected) CollectState.Success else CollectState.Idle
+            )
+        }
         loadPost()
         observePostUpdates()
         observeCurrentUser()
@@ -238,22 +247,30 @@ class PostDetailViewModel @Inject constructor(
 
     fun loadPost() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingPost = true, error = null)
+            val hasCachedPost = _uiState.value.post != null
+            // Only show loading spinner if we have no cached data to display
+            if (!hasCachedPost) {
+                _uiState.value = _uiState.value.copy(isLoadingPost = true, error = null)
+            }
             postRepository.getPost(postId)
                 .onSuccess { post ->
                     _uiState.value = _uiState.value.copy(
                         post = post,
                         isLoadingPost = false,
                         lastFetchTime = System.currentTimeMillis(),
-                        // If already collected, update state
                         collectState = if (post.isCollected) CollectState.Success else _uiState.value.collectState
                     )
                 }
                 .onFailure { error ->
-                    _uiState.value = _uiState.value.copy(
-                        isLoadingPost = false,
-                        error = error.message ?: "Failed to load post"
-                    )
+                    // Only show error if we have no cached data to fall back on
+                    if (!hasCachedPost) {
+                        _uiState.value = _uiState.value.copy(
+                            isLoadingPost = false,
+                            error = error.message ?: "Failed to load post"
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(isLoadingPost = false)
+                    }
                 }
         }
     }

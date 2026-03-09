@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import app.desperse.ui.theme.DesperseMotion
 
 /**
  * Image component with aspect ratio handling for feed and detail contexts.
@@ -71,7 +72,7 @@ fun BlurredBackgroundImage(
     val imageRequest = remember(optimizedUrl) {
         ImageRequest.Builder(context)
             .data(optimizedUrl)
-            .crossfade(150)
+            .crossfade(DesperseMotion.crossfadeMs)
             .build()
     }
 
@@ -130,7 +131,7 @@ fun OptimizedImage(
     val imageRequest = remember(optimizedUrl) {
         ImageRequest.Builder(context)
             .data(optimizedUrl)
-            .crossfade(150)
+            .crossfade(DesperseMotion.crossfadeMs)
             .build()
     }
 

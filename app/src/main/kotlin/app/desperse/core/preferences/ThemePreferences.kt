@@ -1,6 +1,7 @@
 package app.desperse.core.preferences
 
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -8,11 +9,17 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private const val THEME_CACHE_PREFS = "theme_cache"
+private const val THEME_MODE_KEY = "theme_mode"
 
 private val Context.appDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_preferences")
 
@@ -53,15 +60,28 @@ class AppPreferences @Inject constructor(
     private val explorerKey = stringPreferencesKey("explorer")
     private val lastSeenVersionCodeKey = intPreferencesKey("last_seen_version_code")
 
+    private val themeCache = context.getSharedPreferences(THEME_CACHE_PREFS, Context.MODE_PRIVATE)
+
+    init {
+        // One-time migration: seed SharedPreferences cache from DataStore for existing users
+        // who already have a theme preference but no sync cache (e.g. after app update).
+        if (!themeCache.contains(THEME_MODE_KEY)) {
+            CoroutineScope(Dispatchers.IO).launch {
+                val mode = context.appDataStore.data.first()[themeModeKey]
+                if (mode != null) {
+                    themeCache.edit().putString(THEME_MODE_KEY, mode).commit()
+                    // Apply so next launch uses correct window background
+                    applyNightMode(parseThemeMode(mode))
+                }
+            }
+        }
+    }
+
     /**
      * Flow of current theme mode preference
      */
     val themeMode: Flow<ThemeMode> = context.appDataStore.data.map { preferences ->
-        when (preferences[themeModeKey]) {
-            "light" -> ThemeMode.LIGHT
-            "dark" -> ThemeMode.DARK
-            else -> ThemeMode.SYSTEM
-        }
+        parseThemeMode(preferences[themeModeKey])
     }
 
     /**
@@ -78,16 +98,23 @@ class AppPreferences @Inject constructor(
     }
 
     /**
-     * Set theme mode preference
+     * Set theme mode preference. Writes sync cache first (for cold start), then DataStore
+     * (for Compose flow), then applies night mode immediately.
      */
     suspend fun setThemeMode(mode: ThemeMode) {
-        context.appDataStore.edit { preferences ->
-            preferences[themeModeKey] = when (mode) {
-                ThemeMode.SYSTEM -> "system"
-                ThemeMode.LIGHT -> "light"
-                ThemeMode.DARK -> "dark"
-            }
+        val modeString = when (mode) {
+            ThemeMode.SYSTEM -> "system"
+            ThemeMode.LIGHT -> "light"
+            ThemeMode.DARK -> "dark"
         }
+        // Write sync cache first — ensures cold start always has the latest value
+        // even if the app crashes before the DataStore write completes
+        themeCache.edit().putString(THEME_MODE_KEY, modeString).commit()
+        context.appDataStore.edit { preferences ->
+            preferences[themeModeKey] = modeString
+        }
+        // Apply immediately so XML resources resolve correctly
+        applyNightMode(mode)
     }
 
     /**
@@ -120,6 +147,41 @@ class AppPreferences @Inject constructor(
                 ExplorerOption.SOLANA_EXPLORER -> "solana-explorer"
                 ExplorerOption.SOLANAFM -> "solanafm"
             }
+        }
+    }
+    companion object {
+        /**
+         * Parse a stored theme mode string into a ThemeMode enum.
+         * Defaults to DARK for unknown/null values (new/non-logged-in users).
+         */
+        fun parseThemeMode(value: String?): ThemeMode = when (value) {
+            "light" -> ThemeMode.LIGHT
+            "system" -> ThemeMode.SYSTEM
+            "dark" -> ThemeMode.DARK
+            else -> ThemeMode.DARK
+        }
+
+        /**
+         * Read the cached theme mode synchronously from SharedPreferences.
+         * Call in Application.onCreate() before any Activity starts.
+         */
+        fun getThemeModeSync(context: Context): ThemeMode {
+            val prefs = context.getSharedPreferences(THEME_CACHE_PREFS, Context.MODE_PRIVATE)
+            return parseThemeMode(prefs.getString(THEME_MODE_KEY, null))
+        }
+
+        /**
+         * Apply the night mode setting so XML resources (window background, status bar)
+         * resolve to the correct light/dark variant.
+         */
+        fun applyNightMode(mode: ThemeMode) {
+            AppCompatDelegate.setDefaultNightMode(
+                when (mode) {
+                    ThemeMode.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                    ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+                    ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                }
+            )
         }
     }
 }

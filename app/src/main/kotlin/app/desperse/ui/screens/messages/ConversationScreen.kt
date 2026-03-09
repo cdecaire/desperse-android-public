@@ -35,6 +35,8 @@ import app.desperse.ui.components.DesperseAvatar
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.components.MessageBubbleSkeleton
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.theme.DesperseSizes
@@ -125,13 +127,20 @@ fun ConversationScreen(
             // Message list
             when {
                 uiState.isLoading && uiState.messages.isEmpty() -> {
-                    Box(
+                    val brush = rememberShimmerBrush()
+                    Column(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(vertical = DesperseSpacing.md),
+                        verticalArrangement = Arrangement.Bottom
                     ) {
-                        CircularProgressIndicator()
+                        repeat(6) { index ->
+                            MessageBubbleSkeleton(
+                                brush = brush,
+                                isSent = index % 3 == 0
+                            )
+                        }
                     }
                 }
                 uiState.error != null && uiState.messages.isEmpty() -> {

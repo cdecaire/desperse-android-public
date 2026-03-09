@@ -1,6 +1,7 @@
 package app.desperse.ui.screens.profile
 
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneWarning
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,10 +47,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import app.desperse.data.dto.response.ActivityItem
 import app.desperse.ui.components.ButtonVariant
 import app.desperse.ui.components.DesperseTextButton
+import app.desperse.ui.components.ActivityItemSkeleton
 import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.LoadingMoreIndicator
-import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
@@ -105,7 +106,12 @@ fun ActivityScreen(
     ) { padding ->
         when {
             uiState.isLoading -> {
-                LoadingState(modifier = Modifier.padding(padding))
+                val brush = rememberShimmerBrush()
+                Column(modifier = Modifier.padding(padding)) {
+                    repeat(8) {
+                        ActivityItemSkeleton(brush = brush)
+                    }
+                }
             }
 
             uiState.error != null -> {
@@ -279,7 +285,7 @@ private fun ActivityListItem(
                         text = "Tipped",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
-                        color = DesperseTones.Warning
+                        color = toneWarning()
                     )
                 }
                 Text(
@@ -350,7 +356,7 @@ private fun ActivityListItem(
         FaIcon(
             icon = getActivityIcon(activity.type),
             size = 16.dp,
-            tint = if (isTip) DesperseTones.Warning else MaterialTheme.colorScheme.onBackground,
+            tint = if (isTip) toneWarning() else MaterialTheme.colorScheme.onSurface,
             style = FaIconStyle.Regular
         )
     }

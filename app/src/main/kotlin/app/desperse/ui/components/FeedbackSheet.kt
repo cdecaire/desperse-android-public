@@ -38,6 +38,7 @@ import app.desperse.BuildConfig
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneWarning
 import kotlinx.coroutines.launch
 
 private const val MAX_MESSAGE_LENGTH = 1000
@@ -244,7 +245,7 @@ private fun StarRating(
                     size = 28.dp,
                     style = if (isSelected) FaIconStyle.Solid else FaIconStyle.Regular,
                     tint = if (isSelected) {
-                        DesperseTones.Warning
+                        toneWarning()
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     }

@@ -4,20 +4,23 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Trace
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.navigation.compose.rememberNavController
 import com.google.firebase.analytics.FirebaseAnalytics
 import dagger.hilt.android.AndroidEntryPoint
+import app.desperse.core.preferences.AppPreferences
 import app.desperse.core.preferences.ThemeMode
 import app.desperse.core.preferences.ThemePreferences
 import app.desperse.core.push.DesperseFirebaseMessagingService
@@ -31,7 +34,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var themePreferences: ThemePreferences
@@ -67,6 +70,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Trace.beginSection("MainActivity.onCreate")
+
+        // Set night mode BEFORE super.onCreate() so the Activity's configuration
+        // and XML theme resources (windowBackground, etc.) resolve correctly
+        // based on the user's app preference, not the device setting.
+        val themeMode = AppPreferences.getThemeModeSync(this)
+        delegate.localNightMode = when (themeMode) {
+            ThemeMode.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            ThemeMode.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            ThemeMode.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+        }
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -90,7 +104,9 @@ class MainActivity : ComponentActivity() {
 
         Trace.beginSection("MainActivity.setContent")
         setContent {
-            val themeMode by themePreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+            // Use sync-read value as initial state to avoid flash before DataStore emits
+            val initialThemeMode = remember { AppPreferences.getThemeModeSync(this@MainActivity) }
+            val themeMode by themePreferences.themeMode.collectAsState(initial = initialThemeMode)
             val systemDark = isSystemInDarkTheme()
 
             val isDarkTheme = when (themeMode) {

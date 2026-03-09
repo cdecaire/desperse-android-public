@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneDestructive
 
 /**
  * Button variants matching style guide
@@ -130,9 +131,9 @@ fun DesperseButton(
                 shape = CircleShape,
                 contentPadding = contentPadding,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = DesperseTones.Destructive,
+                    containerColor = toneDestructive(),
                     contentColor = Color.White,
-                    disabledContainerColor = DesperseTones.Destructive.copy(alpha = 0.5f),
+                    disabledContainerColor = toneDestructive().copy(alpha = 0.5f),
                     disabledContentColor = Color.White.copy(alpha = 0.5f)
                 )
             ) {

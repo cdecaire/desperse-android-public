@@ -2,7 +2,9 @@ package app.desperse.ui.screens.explore
 
 import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.LoadingMoreIndicator
-import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.PostCardSkeleton
+import app.desperse.ui.components.SearchResultSkeleton
+import app.desperse.ui.components.rememberShimmerBrush
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,7 +27,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -33,9 +34,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,8 +59,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.desperse.data.dto.response.SearchUser
 import app.desperse.data.dto.response.SuggestedCreator
+import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.ui.components.ButtonVariant
+import app.desperse.ui.components.CommentSheet
 import app.desperse.ui.components.DesperseTextButton
 import app.desperse.ui.components.GeometricAvatar
 import app.desperse.ui.components.FaIcon
@@ -67,6 +73,7 @@ import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
+import app.desperse.ui.screens.feed.CommentSheetViewModel
 import app.desperse.ui.theme.DesperseSpacing
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -79,13 +86,20 @@ fun ExploreScreen(
     viewModel: ExploreViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val collectStates by viewModel.collectStates.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val pullRefreshState = rememberPullToRefreshState()
 
     // Report state
     var showReportSheet by remember { mutableStateOf(false) }
     var reportPostId by remember { mutableStateOf("") }
     var reportContentPreview by remember { mutableStateOf<ReportContentPreview?>(null) }
+
+    // Comment sheet state
+    var showCommentSheet by remember { mutableStateOf(false) }
+    var reportContentType by remember { mutableStateOf("post") }
+    val commentSheetViewModel: CommentSheetViewModel = hiltViewModel()
 
     // Load more when scrolling near the end
     LaunchedEffect(listState) {
@@ -121,11 +135,36 @@ fun ExploreScreen(
         ReportSheet(
             open = showReportSheet,
             onDismiss = { showReportSheet = false },
-            contentType = "post",
+            contentType = reportContentType,
             contentPreview = reportContentPreview ?: ReportContentPreview(userName = ""),
             onSubmit = { reasons, details ->
-                viewModel.createReport("post", reportPostId, reasons, details)
+                viewModel.createReport(reportContentType, reportPostId, reasons, details)
             }
+        )
+
+        // Comment Sheet
+        CommentSheet(
+            isOpen = showCommentSheet,
+            onDismiss = {
+                showCommentSheet = false
+                commentSheetViewModel.clearState()
+            },
+            onUserClick = { slug ->
+                showCommentSheet = false
+                onUserClick(slug)
+            },
+            onReportComment = { comment ->
+                showCommentSheet = false
+                reportContentType = "comment"
+                reportPostId = comment.id
+                reportContentPreview = ReportContentPreview(
+                    userName = comment.user.displayName ?: comment.user.slug,
+                    userAvatarUrl = comment.user.avatarUrl,
+                    contentText = comment.content
+                )
+                showReportSheet = true
+            },
+            viewModel = commentSheetViewModel
         )
 
         Column(
@@ -141,16 +180,30 @@ fun ExploreScreen(
                 modifier = Modifier.padding(horizontal = DesperseSpacing.lg, vertical = DesperseSpacing.sm)
             )
 
+            PullToRefreshBox(
+                isRefreshing = uiState.isRefreshing,
+                onRefresh = { viewModel.refresh() },
+                state = pullRefreshState,
+                modifier = Modifier.fillMaxSize()
+            ) {
             when {
                 uiState.showSearchResults -> {
                     // Search Results
                     SearchResults(
                         users = uiState.searchUsers,
                         posts = uiState.searchPosts,
+                        collectStates = collectStates,
                         isSearching = uiState.isSearching,
                         onUserClick = onUserClick,
                         onPostClick = onPostClick,
+                        onLikeClick = viewModel::likePost,
+                        onCollectClick = viewModel::collectPost,
+                        onCommentClick = { postId, commentCount ->
+                            commentSheetViewModel.openForPost(postId, commentCount)
+                            showCommentSheet = true
+                        },
                         onReportPost = { post ->
+                            reportContentType = "post"
                             reportPostId = post.id
                             reportContentPreview = ReportContentPreview(
                                 userName = post.user.displayName ?: post.user.slug,
@@ -164,7 +217,12 @@ fun ExploreScreen(
                 }
 
                 uiState.isLoading -> {
-                    LoadingState()
+                    val brush = rememberShimmerBrush()
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        repeat(3) {
+                            PostCardSkeleton(brush = brush)
+                        }
+                    }
                 }
 
                 uiState.error != null -> {
@@ -218,8 +276,17 @@ fun ExploreScreen(
                         ) { post ->
                             val onClickStable = remember(post.id) { { onPostClick(post.id) } }
                             val onUserClickStable = remember(post.user.slug) { { onUserClick(post.user.slug) } }
+                            val onLikeClickStable = remember(post.id) { { viewModel.likePost(post.id) } }
+                            val onCollectClickStable = remember(post.id) { { viewModel.collectPost(post.id) } }
+                            val onCommentClickStable = remember(post.id, post.commentCount) {
+                                {
+                                    commentSheetViewModel.openForPost(post.id, post.commentCount)
+                                    showCommentSheet = true
+                                }
+                            }
                             val onReportStable = remember(post.id) {
                                 {
+                                    reportContentType = "post"
                                     reportPostId = post.id
                                     reportContentPreview = ReportContentPreview(
                                         userName = post.user.displayName ?: post.user.slug,
@@ -230,13 +297,21 @@ fun ExploreScreen(
                                     showReportSheet = true
                                 }
                             }
+
+                            val collectState by remember(post.id) {
+                                derivedStateOf { collectStates[post.id] ?: CollectState.Idle }
+                            }
+
                             PostCard(
                                 post = post,
                                 onClick = onClickStable,
                                 onUserClick = onUserClickStable,
-                                onLikeClick = { /* TODO: Handle like */ },
-                                onCollectClick = { /* TODO: Handle collect */ },
-                                onReport = onReportStable
+                                onMentionClick = onUserClick,
+                                onLikeClick = onLikeClickStable,
+                                onCommentClick = onCommentClickStable,
+                                onCollectClick = onCollectClickStable,
+                                onReport = onReportStable,
+                                collectState = collectState
                             )
                         }
 
@@ -264,6 +339,7 @@ fun ExploreScreen(
                     }
                 }
             }
+            } // PullToRefreshBox
         }
     }
 }
@@ -439,22 +515,21 @@ private fun CreatorItem(
 private fun SearchResults(
     users: List<SearchUser>,
     posts: List<Post>,
+    collectStates: Map<String, CollectState>,
     isSearching: Boolean,
     onUserClick: (String) -> Unit,
     onPostClick: (String) -> Unit,
+    onLikeClick: (String) -> Unit,
+    onCollectClick: (String) -> Unit,
+    onCommentClick: (String, Int) -> Unit,
     onReportPost: (Post) -> Unit
 ) {
     if (isSearching) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(DesperseSpacing.xl),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                strokeWidth = 2.dp
-            )
+        val brush = rememberShimmerBrush()
+        Column(modifier = Modifier.fillMaxWidth()) {
+            repeat(4) {
+                SearchResultSkeleton(brush = brush)
+            }
         }
         return
     }
@@ -534,14 +609,27 @@ private fun SearchResults(
             ) { post ->
                 val onClickStable = remember(post.id) { { onPostClick(post.id) } }
                 val onUserClickStable = remember(post.user.slug) { { onUserClick(post.user.slug) } }
+                val onLikeClickStable = remember(post.id) { { onLikeClick(post.id) } }
+                val onCollectClickStable = remember(post.id) { { onCollectClick(post.id) } }
+                val onCommentClickStable = remember(post.id, post.commentCount) {
+                    { onCommentClick(post.id, post.commentCount) }
+                }
                 val onReportStable = remember(post) { { onReportPost(post) } }
+
+                val collectState by remember(post.id) {
+                    derivedStateOf { collectStates[post.id] ?: CollectState.Idle }
+                }
+
                 PostCard(
                     post = post,
                     onClick = onClickStable,
                     onUserClick = onUserClickStable,
-                    onLikeClick = { /* TODO: Handle like */ },
-                    onCollectClick = { /* TODO: Handle collect */ },
-                    onReport = onReportStable
+                    onMentionClick = onUserClick,
+                    onLikeClick = onLikeClickStable,
+                    onCommentClick = onCommentClickStable,
+                    onCollectClick = onCollectClickStable,
+                    onReport = onReportStable,
+                    collectState = collectState
                 )
             }
         }

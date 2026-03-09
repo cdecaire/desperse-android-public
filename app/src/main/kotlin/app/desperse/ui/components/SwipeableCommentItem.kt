@@ -97,7 +97,7 @@ fun SwipeableCommentItem(
             comment = comment,
             onUserClick = onUserClick,
             onMentionClick = onMentionClick,
-            modifier = Modifier.background(MaterialTheme.colorScheme.background)
+            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
         )
     }
 }

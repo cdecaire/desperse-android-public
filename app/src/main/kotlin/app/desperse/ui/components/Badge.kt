@@ -23,6 +23,11 @@ import androidx.compose.ui.unit.dp
 import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneCollectible
+import app.desperse.ui.theme.toneDestructive
+import app.desperse.ui.theme.toneEdition
+import app.desperse.ui.theme.toneSuccess
+import app.desperse.ui.theme.toneWarning
 
 /**
  * Badge variants matching style guide
@@ -60,26 +65,21 @@ private fun getBadgeColors(variant: BadgeVariant): Pair<Color, Color> {
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant
         )
-        BadgeVariant.Destructive -> Pair(
-            DesperseTones.Destructive.copy(alpha = 0.1f),
-            DesperseTones.Destructive
-        )
-        BadgeVariant.Success -> Pair(
-            DesperseTones.Standard.copy(alpha = 0.2f),
-            DesperseTones.Standard
-        )
-        BadgeVariant.Warning -> Pair(
-            DesperseTones.Warning.copy(alpha = 0.2f),
-            DesperseTones.Warning
-        )
-        BadgeVariant.Collectible -> Pair(
-            DesperseTones.Collectible.copy(alpha = 0.15f),
-            DesperseTones.Collectible
-        )
-        BadgeVariant.Edition -> Pair(
-            DesperseTones.Edition.copy(alpha = 0.15f),
-            DesperseTones.Edition
-        )
+        BadgeVariant.Destructive -> toneDestructive().let { tone ->
+            Pair(tone.copy(alpha = 0.1f), tone)
+        }
+        BadgeVariant.Success -> toneSuccess().let { tone ->
+            Pair(tone.copy(alpha = 0.2f), tone)
+        }
+        BadgeVariant.Warning -> toneWarning().let { tone ->
+            Pair(tone.copy(alpha = 0.2f), tone)
+        }
+        BadgeVariant.Collectible -> toneCollectible().let { tone ->
+            Pair(tone.copy(alpha = 0.15f), tone)
+        }
+        BadgeVariant.Edition -> toneEdition().let { tone ->
+            Pair(tone.copy(alpha = 0.15f), tone)
+        }
         BadgeVariant.Outline -> Pair(
             Color.Transparent,
             MaterialTheme.colorScheme.onSurface
@@ -201,7 +201,7 @@ fun NotificationBadge(
         modifier = modifier
             .size(if (count > 9) 18.dp else 16.dp)
             .clip(CircleShape)
-            .background(DesperseTones.Destructive),
+            .background(toneDestructive()),
         contentAlignment = Alignment.Center
     ) {
         if (count <= 99) {
@@ -232,6 +232,6 @@ fun UnreadDot(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(DesperseTones.Destructive)
+            .background(toneDestructive())
     )
 }

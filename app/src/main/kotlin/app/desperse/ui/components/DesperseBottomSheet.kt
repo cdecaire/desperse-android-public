@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import app.desperse.ui.theme.DesperseComponentSpacing
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 
@@ -39,8 +40,8 @@ fun SheetDragHandle() {
     ) {
         Box(
             modifier = Modifier
-                .width(32.dp)
-                .height(4.dp)
+                .width(DesperseComponentSpacing.sheetDragHandleWidth)
+                .height(DesperseComponentSpacing.sheetDragHandleHeight)
                 .background(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(2.dp)

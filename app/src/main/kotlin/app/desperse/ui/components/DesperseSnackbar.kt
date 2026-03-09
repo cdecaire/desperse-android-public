@@ -19,7 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.desperse.ui.theme.DesperseSizes
+import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneDestructive
+import app.desperse.ui.theme.toneInfo
+import app.desperse.ui.theme.toneSuccess
+import app.desperse.ui.theme.toneWarning
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
@@ -109,14 +115,14 @@ fun DesperseSnackbar(
     }
 
     val iconColor = when (variant) {
-        ToastVariant.Success -> DesperseTones.Success
-        ToastVariant.Error -> DesperseTones.Destructive
-        ToastVariant.Info -> DesperseTones.Info
-        ToastVariant.Warning -> DesperseTones.Warning
+        ToastVariant.Success -> toneSuccess()
+        ToastVariant.Error -> toneDestructive()
+        ToastVariant.Info -> toneInfo()
+        ToastVariant.Warning -> toneWarning()
     }
 
     Snackbar(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.padding(horizontal = DesperseSpacing.lg, vertical = DesperseSpacing.sm),
         shape = RoundedCornerShape(24.dp),
         containerColor = backgroundColor,
         contentColor = contentColor,
@@ -139,12 +145,12 @@ fun DesperseSnackbar(
                 }
                 FaIcon(
                     icon = icon,
-                    size = 10.dp,
+                    size = DesperseSizes.iconXs,
                     tint = Color.White
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(DesperseSpacing.md))
 
             Text(
                 text = snackbarData.visuals.message,

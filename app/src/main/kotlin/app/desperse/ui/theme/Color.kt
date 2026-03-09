@@ -189,6 +189,19 @@ fun toneLike(): Color = toneDestructive()
 fun toneSuccess(): Color = toneStandard()
 
 /**
+ * Media overlay color for pills, scrims, etc.
+ */
+@Composable
+fun colorOverlay(): Color = Color.Black.copy(alpha = 0.85f)
+
+/**
+ * Subtle divider color - lighter on light mode, darker on dark mode
+ */
+@Composable
+fun colorDivider(): Color = if (androidx.compose.foundation.isSystemInDarkTheme())
+    DesperseColors.Zinc800 else DesperseColors.Zinc200
+
+/**
  * Helper functions to get tone colors based on post type
  */
 @Composable

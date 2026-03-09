@@ -46,6 +46,7 @@ import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.GeometricAvatar
 import app.desperse.ui.components.LoadingMoreIndicator
 import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.components.media.MediaType
@@ -177,14 +178,11 @@ fun PostDetailScreen(
     ) { scaffoldPadding ->
         when {
             uiState.isLoadingPost && post == null -> {
-                Box(
+                PostDetailSkeleton(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(scaffoldPadding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                        .padding(scaffoldPadding)
+                )
             }
             uiState.error != null && post == null -> {
                 ErrorState(
@@ -1090,7 +1088,6 @@ private fun DetailTabs(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                top = DesperseSpacing.xs,
                 start = if (showCollectors) 0.dp else DesperseSpacing.md,
                 end = if (showCollectors) 0.dp else DesperseSpacing.md
             )
@@ -1138,7 +1135,9 @@ private fun DetailTab(
     )
 
     Column(
-        modifier = modifier.clickable { onClick() },
+        modifier = modifier
+            .clickable { onClick() }
+            .padding(top = DesperseSpacing.md, bottom = 0.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -1146,7 +1145,7 @@ private fun DetailTab(
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = textColor,
-            modifier = Modifier.padding(vertical = DesperseSpacing.sm)
+            modifier = Modifier.padding(bottom = DesperseSpacing.sm)
         )
 
         Box(
@@ -1333,6 +1332,77 @@ private fun formatFullDate(timestamp: String): String {
         "$month ${date.dayOfMonth}, ${date.year}"
     } catch (e: Exception) {
         ""
+    }
+}
+
+/**
+ * Skeleton placeholder for post detail loading state (deep links, uncached posts).
+ */
+@Composable
+private fun PostDetailSkeleton(modifier: Modifier = Modifier) {
+    val brush = rememberShimmerBrush()
+    Column(modifier = modifier) {
+        // Header: avatar + name
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(brush)
+            )
+            Spacer(Modifier.width(DesperseSpacing.sm))
+            Column {
+                Box(
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(brush)
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(brush)
+                )
+            }
+        }
+
+        // Media placeholder (full aspect ratio for detail)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.8f)
+                .background(brush)
+        )
+
+        // Actions row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
+        ) {
+            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+        }
+
+        // Caption lines
+        Column(modifier = Modifier.padding(horizontal = DesperseSpacing.md)) {
+            Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth(0.65f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth(0.4f).height(12.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+        }
     }
 }
 

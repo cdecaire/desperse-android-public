@@ -2,7 +2,8 @@ package app.desperse.ui.screens.messages
 
 import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.ErrorState
-import app.desperse.ui.components.LoadingState
+import app.desperse.ui.components.ThreadItemSkeleton
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -73,6 +74,7 @@ import app.desperse.ui.components.FaIcons
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneInfo
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
@@ -175,7 +177,12 @@ fun MessagesScreen(
         ) {
             when {
                 uiState.isLoading && uiState.threads.isEmpty() -> {
-                    LoadingState()
+                    val brush = rememberShimmerBrush()
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        repeat(6) {
+                            ThreadItemSkeleton(brush = brush)
+                        }
+                    }
                 }
 
                 uiState.error != null && uiState.threads.isEmpty() -> {
@@ -297,7 +304,7 @@ private fun ThreadItem(
                             text = relativeTime,
                             style = MaterialTheme.typography.bodySmall,
                             color = if (thread.hasUnread) {
-                                DesperseTones.Info
+                                toneInfo()
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
@@ -330,7 +337,7 @@ private fun ThreadItem(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(DesperseTones.Info)
+                                .background(toneInfo())
                         )
                     }
                 }

@@ -1,6 +1,7 @@
 package app.desperse
 
 import android.app.Application
+import app.desperse.core.preferences.AppPreferences
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.ImageDecoderDecoder
@@ -20,6 +21,10 @@ class DesperseApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Apply saved theme mode so XML window background matches user preference
+        val themeMode = AppPreferences.getThemeModeSync(this)
+        AppPreferences.applyNightMode(themeMode)
 
         // Initialize Sentry if DSN is configured
         if (BuildConfig.SENTRY_DSN.isNotBlank()) {

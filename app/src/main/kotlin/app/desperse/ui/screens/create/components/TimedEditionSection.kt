@@ -48,7 +48,9 @@ import app.desperse.ui.components.FaIcons
 import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.toneDestructive
 import app.desperse.ui.theme.toneEdition
+import app.desperse.ui.theme.toneSuccess
 import app.desperse.ui.util.MintWindowUtils
 import java.time.Instant
 import java.time.LocalTime
@@ -279,7 +281,7 @@ private fun LockedSummary(
                     fontWeight = FontWeight.Medium,
                     color = when {
                         isEnded -> MaterialTheme.colorScheme.onSurfaceVariant
-                        isActive -> DesperseTones.Success
+                        isActive -> toneSuccess()
                         else -> MaterialTheme.colorScheme.onSurface
                     }
                 )
@@ -456,9 +458,9 @@ private fun DetailPanel(
             val (_, endLabel, endInPast) = preview
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (endInPast) DesperseTones.Destructive.copy(alpha = 0.1f)
+                color = if (endInPast) toneDestructive().copy(alpha = 0.1f)
                 else MaterialTheme.colorScheme.onBackground,
-                border = if (endInPast) BorderStroke(1.dp, DesperseTones.Destructive.copy(alpha = 0.2f)) else null
+                border = if (endInPast) BorderStroke(1.dp, toneDestructive().copy(alpha = 0.2f)) else null
             ) {
                 Column(
                     modifier = Modifier
@@ -470,13 +472,13 @@ private fun DetailPanel(
                         endLabel,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (endInPast) DesperseTones.Destructive else MaterialTheme.colorScheme.background,
+                        color = if (endInPast) toneDestructive() else MaterialTheme.colorScheme.background,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         if (endInPast) "End time is in the past" else "Sale auto-closes",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (endInPast) DesperseTones.Destructive.copy(alpha = 0.8f)
+                        color = if (endInPast) toneDestructive().copy(alpha = 0.8f)
                         else MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center
                     )

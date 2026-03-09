@@ -57,6 +57,10 @@ object DesperseComponentSpacing {
     val dropdownItemPaddingHorizontal: Dp = 16.dp
     val dropdownItemPaddingVertical: Dp = 10.dp
     val dropdownItemGap: Dp = 12.dp
+
+    // Sheet drag handle
+    val sheetDragHandleWidth: Dp = 32.dp
+    val sheetDragHandleHeight: Dp = 4.dp
 }
 
 /**
@@ -97,6 +101,13 @@ object DesperseSizes {
 
     // Tabs
     val tabHeight: Dp = 36.dp
+}
+
+/**
+ * Motion/animation duration constants
+ */
+object DesperseMotion {
+    const val crossfadeMs: Int = 150
 }
 
 /**

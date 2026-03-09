@@ -33,9 +33,11 @@ import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
 import app.desperse.ui.components.media.PostMedia
 import app.desperse.ui.theme.DesperseComponentSpacing
+import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
+import app.desperse.ui.theme.colorOverlay
 import app.desperse.ui.theme.toneCollectible
 import app.desperse.ui.theme.toneEdition
 import app.desperse.ui.theme.toneInfo
@@ -360,8 +362,8 @@ private fun MediaPill(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.85f))
+            .clip(RoundedCornerShape(DesperseRadius.md))
+            .background(colorOverlay())
             .padding(horizontal = DesperseSpacing.sm, vertical = DesperseSpacing.xs)
     ) {
         Text(
@@ -483,7 +485,7 @@ private fun ActionButton(
 ) {
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(DesperseRadius.sm))
             .clickable { onClick() }
             .padding(DesperseSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
@@ -562,7 +564,7 @@ private fun BuyButton(
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(DesperseRadius.sm))
             .clickable(enabled = isClickable) { onClick() }
             .padding(DesperseSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,

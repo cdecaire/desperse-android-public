@@ -16,6 +16,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
+import app.desperse.ui.theme.DesperseMotion
 import app.desperse.ui.theme.DesperseSizes
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -75,7 +76,7 @@ fun DesperseAvatar(
             val optimized = ImageOptimization.getOptimizedUrlForContext(url, ImageContext.AVATAR)
             ImageRequest.Builder(context)
                 .data(optimized)
-                .crossfade(150)
+                .crossfade(DesperseMotion.crossfadeMs)
                 .size(size.size.value.toInt() * 2) // 2x for density
                 .build()
         }

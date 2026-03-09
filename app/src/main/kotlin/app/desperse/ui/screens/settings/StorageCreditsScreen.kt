@@ -21,6 +21,8 @@ import app.desperse.core.arweave.ArweaveUtils
 import app.desperse.core.arweave.CreditApproval
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.components.StorageCreditsSkeleton
+import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.theme.toneDestructive
 import app.desperse.ui.theme.toneStandard
 import app.desperse.ui.theme.toneWarning
@@ -61,19 +63,18 @@ fun StorageCreditsScreen(
                     IconButton(onClick = onBack) {
                         FaIcon(FaIcons.ArrowLeft, size = 20.dp)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->
         if (uiState.isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(32.dp))
-            }
+            StorageCreditsSkeleton(
+                brush = rememberShimmerBrush(),
+                modifier = Modifier.padding(padding)
+            )
         } else {
             Column(
                 modifier = Modifier
@@ -326,7 +327,7 @@ private fun AuthorizationSection(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = shareState is ShareState.Idle || shareState is ShareState.Failed,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = standardColor
+                        containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
                     when (shareState) {
@@ -400,7 +401,9 @@ private fun TopUpSection(
 
             // Preset amount chips
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 presetAmounts.forEach { amount ->
@@ -409,35 +412,27 @@ private fun TopUpSection(
                         onClick = { onSelectAmount(amount) },
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .then(
-                                if (isSelected) {
-                                    Modifier.border(
-                                        width = 1.dp,
-                                        color = standardColor,
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                } else {
-                                    Modifier.border(
-                                        width = 1.dp,
-                                        color = MaterialTheme.colorScheme.outlineVariant,
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                }
+                            .fillMaxHeight()
+                            .border(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(12.dp)
                             ),
-                        color = if (isSelected) standardColor.copy(alpha = 0.1f)
-                        else Color.Transparent,
-                        shape = RoundedCornerShape(8.dp)
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
-                            text = "${amount} SOL",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (isSelected) standardColor else MaterialTheme.colorScheme.onSurface,
+                        Box(
                             modifier = Modifier
-                                .padding(vertical = 10.dp)
-                                .fillMaxWidth(),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
+                                .fillMaxSize()
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "${amount} SOL",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -455,7 +450,7 @@ private fun TopUpSection(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isInProgress && topUpState !is TopUpState.Success,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = standardColor
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 when (topUpState) {
