@@ -88,6 +88,17 @@ class FeedViewModel @Inject constructor(
     private val purchasePollingJobs = mutableMapOf<String, Job>()
     private var periodicRefreshJob: Job? = null
 
+    /** Tracks whether a loadFeed() call is currently in flight to prevent duplicate fetches */
+    private var isFetchInFlight = false
+
+    /** Per-tab cache: posts, hasMore, nextCursor */
+    private data class TabCache(
+        val posts: List<Post> = emptyList(),
+        val hasMore: Boolean = false,
+        val nextCursor: String? = null
+    )
+    private val tabCaches = mutableMapOf<String, TabCache>()
+
     init {
         loadFeed()
         observePostUpdates()
@@ -107,10 +118,16 @@ class FeedViewModel @Inject constructor(
      * Starts periodic refresh and does an immediate refresh if data is stale.
      */
     fun onScreenVisible() {
+        // Skip if a fetch is already in flight (prevents duplicate load from init + onScreenVisible race)
+        if (isFetchInFlight) {
+            startPeriodicRefresh()
+            return
+        }
+
         val lastFetch = _uiState.value.lastFetchTimeByTab[_selectedTab.value] ?: 0L
         val timeSinceLastFetch = System.currentTimeMillis() - lastFetch
 
-        // Skip if we just fetched (prevents duplicate load from init + onScreenVisible race)
+        // Skip if we just fetched
         if (timeSinceLastFetch < MIN_FETCH_INTERVAL_MS) {
             startPeriodicRefresh()
             return
@@ -167,8 +184,28 @@ class FeedViewModel @Inject constructor(
                     _purchaseStates.update { it.filterKeys { id -> id !in collectedPostIds } }
 
                     _uiState.update { currentState ->
+                        // Merge fresh server data with local optimistic state.
+                        // If the user liked/collected a post locally (optimistic update)
+                        // but the server hasn't persisted it yet, preserve the local state.
+                        val currentPostsById = currentState.posts.associateBy { it.id }
+                        val mergedPosts = feedPage.posts.map { freshPost ->
+                            val currentPost = currentPostsById[freshPost.id]
+                            if (currentPost != null) {
+                                freshPost.copy(
+                                    isLiked = freshPost.isLiked || currentPost.isLiked,
+                                    isCollected = freshPost.isCollected || currentPost.isCollected,
+                                    likeCount = if (currentPost.isLiked && !freshPost.isLiked)
+                                        currentPost.likeCount else freshPost.likeCount,
+                                    collectCount = if (currentPost.isCollected && !freshPost.isCollected)
+                                        currentPost.collectCount else freshPost.collectCount
+                                )
+                            } else {
+                                freshPost
+                            }
+                        }
+
                         currentState.copy(
-                            posts = feedPage.posts,
+                            posts = mergedPosts,
                             hasMore = feedPage.hasMore,
                             nextCursor = feedPage.nextCursor,
                             error = null,
@@ -278,11 +315,39 @@ class FeedViewModel @Inject constructor(
 
     fun switchTab(tab: String) {
         if (_selectedTab.value != tab) {
+            // Save current tab's posts to cache
+            val currentTab = _selectedTab.value
+            val currentState = _uiState.value
+            tabCaches[currentTab] = TabCache(
+                posts = currentState.posts,
+                hasMore = currentState.hasMore,
+                nextCursor = currentState.nextCursor
+            )
+
             _selectedTab.value = tab
+
+            // Restore cached posts for the new tab (or clear if none)
+            val cached = tabCaches[tab]
+            if (cached != null) {
+                _uiState.update {
+                    it.copy(
+                        posts = cached.posts,
+                        hasMore = cached.hasMore,
+                        nextCursor = cached.nextCursor,
+                        isLoading = false
+                    )
+                }
+            } else {
+                // No cache — clear posts and show loading
+                _uiState.update {
+                    it.copy(posts = emptyList(), hasMore = false, nextCursor = null, isLoading = true)
+                }
+            }
+
             val lastFetch = _uiState.value.lastFetchTimeByTab[tab] ?: 0L
             val timeSinceLastFetch = System.currentTimeMillis() - lastFetch
             if (timeSinceLastFetch > STALE_TIME_MS || lastFetch == 0L) {
-                loadFeed()
+                loadFeed(isRefresh = cached != null)
             }
         }
     }
@@ -293,6 +358,7 @@ class FeedViewModel @Inject constructor(
     }
 
     private fun loadFeed(isRefresh: Boolean = false) {
+        isFetchInFlight = true
         viewModelScope.launch {
             if (!isRefresh) {
                 _uiState.update { it.copy(isLoading = true, error = null) }
@@ -307,6 +373,7 @@ class FeedViewModel @Inject constructor(
                     _collectStates.update { it.filterKeys { id -> id !in collectedPostIds } }
                     _purchaseStates.update { it.filterKeys { id -> id !in collectedPostIds } }
 
+                    val tab = _selectedTab.value
                     _uiState.update {
                         it.copy(
                             posts = feedPage.posts,
@@ -316,13 +383,20 @@ class FeedViewModel @Inject constructor(
                             nextCursor = feedPage.nextCursor,
                             error = null,
                             lastFetchTimeByTab = it.lastFetchTimeByTab +
-                                (_selectedTab.value to System.currentTimeMillis())
+                                (tab to System.currentTimeMillis())
                         )
                     }
 
+                    // Update tab cache
+                    tabCaches[tab] = TabCache(
+                        posts = feedPage.posts,
+                        hasMore = feedPage.hasMore,
+                        nextCursor = feedPage.nextCursor
+                    )
+
                     // Update lastSeen timestamp to clear new post badge
                     feedPage.posts.firstOrNull()?.createdAt?.let { timestamp ->
-                        notificationCountManager.updateLastSeen(_selectedTab.value, timestamp)
+                        notificationCountManager.updateLastSeen(tab, timestamp)
                     }
                 }
                 .onFailure { error ->
@@ -334,6 +408,7 @@ class FeedViewModel @Inject constructor(
                         )
                     }
                 }
+            isFetchInFlight = false
         }
     }
 
@@ -344,7 +419,8 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingMore = true) }
 
-            postRepository.getFeed(_selectedTab.value, cursor = state.nextCursor)
+            val tab = _selectedTab.value
+            postRepository.getFeed(tab, cursor = state.nextCursor)
                 .onSuccess { feedPage ->
                     _uiState.update { current ->
                         // Deduplicate by post ID
@@ -358,6 +434,13 @@ class FeedViewModel @Inject constructor(
                             nextCursor = feedPage.nextCursor
                         )
                     }
+                    // Update tab cache
+                    val updated = _uiState.value
+                    tabCaches[tab] = TabCache(
+                        posts = updated.posts,
+                        hasMore = updated.hasMore,
+                        nextCursor = updated.nextCursor
+                    )
                 }
                 .onFailure {
                     _uiState.update { it.copy(isLoadingMore = false) }

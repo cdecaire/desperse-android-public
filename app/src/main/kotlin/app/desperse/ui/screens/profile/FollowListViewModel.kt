@@ -2,8 +2,10 @@ package app.desperse.ui.screens.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.desperse.data.PostUpdateManager
 import app.desperse.data.dto.response.FollowUser
 import app.desperse.data.repository.UserRepository
+import app.desperse.ui.components.ToastManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +26,9 @@ data class FollowListUiState(
 
 @HiltViewModel
 class FollowListViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val postUpdateManager: PostUpdateManager,
+    private val toastManager: ToastManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FollowListUiState())
@@ -34,6 +38,25 @@ class FollowListViewModel @Inject constructor(
 
     private var currentSlug: String? = null
     private var currentListType: FollowListType? = null
+
+    init {
+        observeFollowUpdates()
+    }
+
+    private fun observeFollowUpdates() {
+        viewModelScope.launch {
+            postUpdateManager.followUpdates.collect { update ->
+                _uiState.update { state ->
+                    state.copy(
+                        users = state.users.map { u ->
+                            if (u.id == update.userId) u.copy(isFollowing = update.isFollowing)
+                            else u
+                        }
+                    )
+                }
+            }
+        }
+    }
 
     fun load(slug: String, listType: FollowListType) {
         currentSlug = slug
@@ -137,6 +160,15 @@ class FollowListViewModel @Inject constructor(
                             }
                         )
                     }
+                    // Broadcast to other screens
+                    postUpdateManager.emitFollowUpdate(userId, newIsFollowing)
+                    // Show confirmation
+                    val displayName = user.displayName ?: user.slug
+                    if (newIsFollowing) {
+                        toastManager.showSuccess("Following $displayName")
+                    } else {
+                        toastManager.showInfo("Unfollowed $displayName")
+                    }
                 }
                 .onFailure {
                     // Revert optimistic update
@@ -149,6 +181,7 @@ class FollowListViewModel @Inject constructor(
                             }
                         )
                     }
+                    toastManager.showError("Failed to update follow")
                 }
         }
     }

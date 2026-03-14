@@ -24,6 +24,7 @@ import app.desperse.data.repository.TipRepository
 import app.desperse.data.repository.UserRepository
 import app.desperse.data.repository.PostRepository
 import app.desperse.ui.components.TipState
+import app.desperse.ui.components.ToastManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -118,7 +119,8 @@ class ProfileViewModel @Inject constructor(
     private val messageRepository: MessageRepository,
     private val transactionWalletManager: TransactionWalletManager,
     private val tipRepository: TipRepository,
-    private val api: DesperseApi
+    private val api: DesperseApi,
+    private val toastManager: ToastManager
 ) : ViewModel() {
 
     companion object {
@@ -136,6 +138,7 @@ class ProfileViewModel @Inject constructor(
     init {
         loadProfile()
         observePostUpdates()
+        observeFollowUpdates()
         observeCurrentUserUpdates()
     }
 
@@ -425,10 +428,20 @@ class ProfileViewModel @Inject constructor(
 
             result
                 .onSuccess { newIsFollowing ->
+                    val updatedCount = _uiState.value.followersCount
                     _uiState.update { it.copy(
                         isFollowing = newIsFollowing,
                         isFollowLoading = false
                     ) }
+                    // Broadcast to other screens
+                    postUpdateManager.emitFollowUpdate(userId, newIsFollowing, updatedCount)
+                    // Show confirmation
+                    val displayName = currentState.user?.displayName ?: currentState.user?.slug ?: "user"
+                    if (newIsFollowing) {
+                        toastManager.showSuccess("Following $displayName")
+                    } else {
+                        toastManager.showInfo("Unfollowed $displayName")
+                    }
                 }
                 .onFailure {
                     // Revert optimistic update
@@ -437,6 +450,7 @@ class ProfileViewModel @Inject constructor(
                         followersCount = if (isCurrentlyFollowing) it.followersCount + 1 else it.followersCount - 1,
                         isFollowLoading = false
                     ) }
+                    toastManager.showError("Failed to update follow")
                 }
         }
     }
@@ -675,6 +689,20 @@ class ProfileViewModel @Inject constructor(
                             )
                         } ?: state
                     }
+                }
+            }
+        }
+    }
+
+    private fun observeFollowUpdates() {
+        viewModelScope.launch {
+            postUpdateManager.followUpdates.collect { update ->
+                val currentUser = _uiState.value.user ?: return@collect
+                if (currentUser.id == update.userId) {
+                    _uiState.update { it.copy(
+                        isFollowing = update.isFollowing,
+                        followersCount = update.followersCount ?: it.followersCount
+                    ) }
                 }
             }
         }

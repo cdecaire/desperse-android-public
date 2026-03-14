@@ -15,11 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -55,6 +59,7 @@ import app.desperse.ui.screens.create.components.NftMetadataCard
 import app.desperse.ui.screens.create.components.PermanentStorageSection
 import app.desperse.ui.screens.create.components.PostTypeSelector
 import app.desperse.ui.screens.create.components.TimedEditionSection
+import app.desperse.ui.screens.settings.LICENSE_PRESETS
 import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneCollectible
@@ -95,6 +100,13 @@ fun CreateScreen(
 
     val isNftType = uiState.postType == "collectible" || uiState.postType == "edition"
     val isEdition = uiState.postType == "edition"
+
+    // Load creator copyright defaults when post type changes to collectible/edition
+    LaunchedEffect(uiState.postType) {
+        if (isNftType) {
+            viewModel.loadCreatorDefaults()
+        }
+    }
 
     // Derive needsCover from whether any media item is non-previewable
     val hasNonPreviewable = remember(uiState.mediaItems) {
@@ -421,6 +433,24 @@ fun CreateScreen(
                     }
                 }
 
+                // 7. Copyright & Licensing (collectible/edition only)
+                if (isNftType) {
+                    FormCard {
+                        CopyrightSection(
+                            licensePreset = uiState.copyrightLicensePreset,
+                            licenseCustom = uiState.copyrightLicenseCustom,
+                            copyrightHolder = uiState.copyrightHolder,
+                            copyrightRights = uiState.copyrightRights,
+                            enabled = uiState.fieldLocking.areNftFieldsEditable,
+                            accentColor = if (isEdition) editionColor else collectibleColor,
+                            onPresetChange = { viewModel.updateCopyrightLicensePreset(it) },
+                            onCustomChange = { viewModel.updateCopyrightLicenseCustom(it) },
+                            onHolderChange = { viewModel.updateCopyrightHolder(it) },
+                            onRightsChange = { viewModel.updateCopyrightRights(it) }
+                        )
+                    }
+                }
+
                 // Error banner
                 uiState.submitError?.let { error ->
                     Surface(
@@ -505,5 +535,165 @@ fun CreateScreen(
                 textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CopyrightSection(
+    licensePreset: String?,
+    licenseCustom: String,
+    copyrightHolder: String,
+    copyrightRights: String,
+    enabled: Boolean,
+    accentColor: Color,
+    onPresetChange: (String?) -> Unit,
+    onCustomChange: (String) -> Unit,
+    onHolderChange: (String) -> Unit,
+    onRightsChange: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)) {
+        Text(
+            text = "Copyright & Licensing",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Text(
+            text = "Set copyright and licensing for this post",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // License dropdown
+        var expanded by remember { mutableStateOf(false) }
+        val displayText = licensePreset ?: "None"
+
+        ExposedDropdownMenuBox(
+            expanded = expanded && enabled,
+            onExpandedChange = { if (enabled) expanded = it }
+        ) {
+            OutlinedTextField(
+                value = displayText,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("License Type") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                enabled = enabled,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentColor,
+                    cursorColor = accentColor,
+                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = RoundedCornerShape(DesperseRadius.sm)
+            )
+            ExposedDropdownMenu(
+                expanded = expanded && enabled,
+                onDismissRequest = { expanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("None") },
+                    onClick = {
+                        onPresetChange(null)
+                        expanded = false
+                    }
+                )
+                LICENSE_PRESETS.forEach { preset ->
+                    DropdownMenuItem(
+                        text = { Text(preset) },
+                        onClick = {
+                            onPresetChange(preset)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // Custom license text (only when CUSTOM)
+        if (licensePreset == "CUSTOM") {
+            OutlinedTextField(
+                value = licenseCustom,
+                onValueChange = onCustomChange,
+                label = { Text("Custom License") },
+                placeholder = { Text("e.g., MIT, Apache-2.0") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = enabled,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentColor,
+                    cursorColor = accentColor,
+                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = RoundedCornerShape(DesperseRadius.sm),
+                supportingText = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text("${licenseCustom.length} / 100")
+                    }
+                }
+            )
+        }
+
+        // Rights Holder
+        OutlinedTextField(
+            value = copyrightHolder,
+            onValueChange = onHolderChange,
+            label = { Text("Rights Holder") },
+            placeholder = { Text("Legal name or entity") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = enabled,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accentColor,
+                cursorColor = accentColor,
+                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            shape = RoundedCornerShape(DesperseRadius.sm),
+            supportingText = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text("${copyrightHolder.length} / 200")
+                }
+            }
+        )
+
+        // Rights Statement
+        OutlinedTextField(
+            value = copyrightRights,
+            onValueChange = onRightsChange,
+            label = { Text("Rights Statement") },
+            placeholder = { Text("Describe usage rights and restrictions") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            maxLines = 4,
+            enabled = enabled,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accentColor,
+                cursorColor = accentColor,
+                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            shape = RoundedCornerShape(DesperseRadius.sm),
+            supportingText = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text("${copyrightRights.length} / 1000")
+                }
+            }
+        )
     }
 }

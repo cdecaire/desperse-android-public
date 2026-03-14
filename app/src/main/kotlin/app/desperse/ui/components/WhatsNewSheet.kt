@@ -34,6 +34,13 @@ data class WhatsNewContent(
  * Add a new entry here each time you release a version.
  */
 val changelogs = mapOf(
+    9 to WhatsNewContent(
+        version = "1.0.8",
+        items = listOf(
+            "Share posts with friends via the share button",
+            "Bug fixes and stability improvements",
+        )
+    ),
     8 to WhatsNewContent(
         version = "1.0.7",
         items = listOf(

@@ -41,6 +41,7 @@ import app.desperse.ui.components.PostCardMenuSheet
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.components.WalletPickerSheet
+import app.desperse.ui.components.DesperseBottomSheet
 import app.desperse.ui.components.DesperseTextButton
 import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.GeometricAvatar
@@ -896,6 +897,7 @@ private fun PostDetailsSection(post: Post) {
     val context = LocalContext.current
     val isNft = post.type == "collectible" || post.type == "edition"
     val hasMintWindow = post.mintWindowStart != null && post.mintWindowEnd != null
+    var showCopyrightSheet by remember { mutableStateOf(false) }
 
     // Explorer preference for Token ID link
     val entryPoint = remember {
@@ -1032,6 +1034,77 @@ private fun PostDetailsSection(post: Post) {
             )
         }
         mintWindowText?.let { DetailRow("Mint Window", it) }
+        // Copyright & licensing (NFT only)
+        if (isNft) {
+            val hasStatement = !post.copyrightStatement.isNullOrBlank()
+            post.copyrightLicense?.takeIf { it.isNotBlank() }?.let { license ->
+                if (hasStatement) {
+                    DetailRow(
+                        label = "License",
+                        value = license,
+                        trailingIcon = FaIcons.CircleInfo,
+                        onClick = { showCopyrightSheet = true }
+                    )
+                } else {
+                    DetailRow("License", license)
+                }
+            }
+            post.copyrightHolder?.takeIf { it.isNotBlank() }?.let { DetailRow("Rights Holder", it) }
+        }
+    }
+
+    // Copyright statement sheet
+    if (showCopyrightSheet && !post.copyrightStatement.isNullOrBlank()) {
+        CopyrightStatementSheet(
+            license = post.copyrightLicense ?: "",
+            holder = post.copyrightHolder,
+            statement = post.copyrightStatement,
+            onDismiss = { showCopyrightSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CopyrightStatementSheet(
+    license: String,
+    holder: String?,
+    statement: String,
+    onDismiss: () -> Unit
+) {
+    DesperseBottomSheet(
+        isOpen = true,
+        onDismiss = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DesperseSpacing.lg)
+                .padding(bottom = DesperseSpacing.xxxl)
+        ) {
+            Text(
+                text = license,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            if (!holder.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = holder,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(DesperseSpacing.lg))
+
+            Text(
+                text = statement,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 

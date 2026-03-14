@@ -83,6 +83,12 @@ private val accountSettings = listOf(
         description = "Control who can message you"
     ),
     SettingsItemData(
+        route = "settings/copyright",
+        label = "Copyright & Licensing",
+        icon = FaIcons.Copyright,
+        description = "Default rights for new posts"
+    ),
+    SettingsItemData(
         route = "settings/storage-credits",
         label = "Storage Credits",
         icon = FaIcons.Database,

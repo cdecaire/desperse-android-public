@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 interface PostCardMenuEntryPoint {
     fun appPreferences(): app.desperse.core.preferences.AppPreferences
     fun gatedDownloadManager(): GatedDownloadManager
+    fun toastManager(): ToastManager
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +88,8 @@ fun PostCardMenuSheet(
     }
     val appPreferences = remember { entryPoint.appPreferences() }
     val downloadManager = remember { entryPoint.gatedDownloadManager() }
+    val toastManager = remember { entryPoint.toastManager() }
+    val postUrl = remember(post.id) { "https://desperse.com/post/${post.id}" }
     val explorerOption by appPreferences.explorer.collectAsState(initial = ExplorerOption.ORB)
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true
@@ -149,16 +152,29 @@ fun PostCardMenuSheet(
                     )
                 }
 
+                // Share
+                SheetMenuItem(
+                    icon = FaIcons.Share,
+                    label = "Share",
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, postUrl)
+                        }
+                        context.startActivity(Intent.createChooser(intent, null))
+                        onDismiss()
+                    }
+                )
+
                 // Copy link
                 SheetMenuItem(
                     icon = FaIcons.Link,
                     label = "Copy link",
                     onClick = {
-                        val postUrl = "https://desperse.com/p/${post.id}"
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("Post link", postUrl))
+                        toastManager.showSuccess("Link copied to clipboard")
                         onDismiss()
-                        // TODO: Show toast "Link copied to clipboard"
                     }
                 )
 

@@ -118,9 +118,13 @@ class MainActivity : AppCompatActivity() {
             DesperseTheme(darkTheme = isDarkTheme) {
                 val navController = rememberNavController()
 
-                // Handle deep links (re-triggers on new intents via deepLinkTrigger)
+                // Handle deep links — re-triggers on new intents and when auth/bootstrap finish.
+                // The nav graph is only set once NavHost composes (behind auth + bootstrap gates),
+                // so we also key on those states to retry after the graph becomes available.
                 val trigger by deepLinkTrigger
-                LaunchedEffect(trigger) {
+                val authState by authGateViewModel.authState.collectAsState()
+                val bootstrapState by authGateViewModel.bootstrapState.collectAsState()
+                LaunchedEffect(trigger, authState, bootstrapState) {
                     handleDeepLink(intent, navController)
                 }
 
@@ -194,18 +198,29 @@ class MainActivity : AppCompatActivity() {
         // Skip wallet callbacks - they're handled separately
         if (uri.scheme == "desperse" && uri.host == "wallet-callback") return
 
+        // Don't navigate if the NavHost hasn't composed yet (auth gate may return early)
+        try {
+            navController.graph
+        } catch (_: IllegalStateException) {
+            Log.d("MainActivity", "Deep link deferred — nav graph not yet set: $uri")
+            return
+        }
+
         when {
-            // Post: desperse.com/p/{postId}
-            uri.pathSegments.getOrNull(0) == "p" -> {
+            // Post: desperse.com/post/{postId} or desperse.com/p/{postId} (legacy)
+            uri.pathSegments.getOrNull(0) == "post" || uri.pathSegments.getOrNull(0) == "p" -> {
                 val postId = uri.pathSegments.getOrNull(1)
                 if (postId != null) {
                     navController.navigate("post/$postId")
+                    // Clear intent data so we don't re-navigate on auth/bootstrap state changes
+                    intent.data = null
                 }
             }
             // Profile: desperse.com/{slug}
             uri.pathSegments.size == 1 -> {
                 val slug = uri.pathSegments[0]
                 navController.navigate("profile/$slug")
+                intent.data = null
             }
         }
     }

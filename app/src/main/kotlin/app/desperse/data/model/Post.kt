@@ -44,7 +44,11 @@ data class Post(
     val mintWindowEnd: String? = null,
     // File metadata from first media asset (for detail views)
     val mediaFileSize: Long? = null,
-    val mediaMimeType: String? = null
+    val mediaMimeType: String? = null,
+    // Copyright & licensing
+    val copyrightLicense: String? = null,
+    val copyrightHolder: String? = null,
+    val copyrightStatement: String? = null
 )
 
 /**

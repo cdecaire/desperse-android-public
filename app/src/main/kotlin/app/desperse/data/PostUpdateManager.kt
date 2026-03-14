@@ -60,6 +60,18 @@ class PostUpdateManager @Inject constructor() {
     suspend fun emitPostEdited(post: Post) {
         _updates.emit(PostUpdate.PostEdited(post.id, post))
     }
+
+    // --- Follow updates (keyed by userId, not postId) ---
+
+    private val _followUpdates = MutableSharedFlow<FollowUpdate>(extraBufferCapacity = 10)
+    val followUpdates: SharedFlow<FollowUpdate> = _followUpdates.asSharedFlow()
+
+    /**
+     * Emit a follow state change for a user
+     */
+    suspend fun emitFollowUpdate(userId: String, isFollowing: Boolean, followersCount: Int? = null) {
+        _followUpdates.emit(FollowUpdate(userId, isFollowing, followersCount))
+    }
 }
 
 /**
@@ -99,3 +111,12 @@ sealed class PostUpdate {
         val post: Post
     ) : PostUpdate()
 }
+
+/**
+ * Represents a follow state change for a user (separate from post updates)
+ */
+data class FollowUpdate(
+    val userId: String,
+    val isFollowing: Boolean,
+    val followersCount: Int? = null
+)

@@ -598,6 +598,16 @@ data class TipStatsResult(
     val tipCount: Int = 0
 )
 
+// === Creator Settings ===
+
+@Serializable
+data class CreatorSettingsResult(
+    val copyrightLicensePreset: String? = null,
+    val copyrightLicenseCustom: String? = null,
+    val copyrightHolder: String? = null,
+    val copyrightRights: String? = null
+)
+
 // === Download Auth ===
 
 @Serializable

@@ -427,6 +427,16 @@ interface DesperseApi {
         @Body request: UnregisterPushTokenRequest
     ): Response<ApiEnvelope<Unit>>
 
+    // === Creator Settings ===
+
+    @GET("api/v1/creator-settings")
+    suspend fun getCreatorSettings(): Response<ApiEnvelope<CreatorSettingsResult>>
+
+    @PATCH("api/v1/creator-settings")
+    suspend fun updateCreatorSettings(
+        @Body request: UpdateCreatorSettingsRequest
+    ): Response<ApiEnvelope<CreatorSettingsResult>>
+
     // === Arweave Storage Credits (Server Proxy) ===
 
     @POST("api/v1/arweave/share-credits/prepare")

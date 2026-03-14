@@ -99,9 +99,12 @@ Test dependencies configured: JUnit 4, MockK, Turbine (Flow testing), Espresso, 
 ./gradlew test --tests "*ViewModel*"
 ```
 
-## Deep Linking
+## Deep Linking & Post URLs
 
-- `https://desperse.com/p/{postId}` → Post detail
+**Post URL format:** `https://desperse.com/post/{postId}` (matches web app)
+- The Android app also accepts `/p/{postId}` as a legacy alias, but always **generate URLs with `/post/`** for sharing/clipboard so they work on web.
+
+- `https://desperse.com/post/{postId}` → Post detail
 - `https://desperse.com/{slug}` → User profile
 - `desperse://auth` → OAuth callback
 

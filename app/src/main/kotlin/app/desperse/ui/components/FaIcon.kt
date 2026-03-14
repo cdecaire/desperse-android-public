@@ -136,6 +136,7 @@ object FaIcons {
     const val Trophy = "\uf091"
     const val Award = "\uf559"
     const val Certificate = "\uf0a3"
+    const val Copyright = "\uf1f9"
     const val Star = "\uf005"
     const val StarSolid = "\uf005"
 

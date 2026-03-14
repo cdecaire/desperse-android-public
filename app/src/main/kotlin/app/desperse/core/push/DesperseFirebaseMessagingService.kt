@@ -4,6 +4,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.net.Uri
 import android.os.Build
 import android.util.Log
@@ -17,6 +23,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.URL
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -56,18 +64,28 @@ class DesperseFirebaseMessagingService : FirebaseMessagingService() {
         val body = data["body"] ?: notification?.body ?: ""
         val deepLink = data["deepLink"] ?: notification?.link?.toString()
         val type = data["type"] ?: "notification"
+        val avatarUrl = data["actorAvatarUrl"]
+        val imageUrl = data["imageUrl"]
 
-        showNotification(title, body, deepLink, type, message)
+        serviceScope.launch {
+            showNotification(title, body, deepLink, type, avatarUrl, imageUrl, message)
+        }
     }
 
-    private fun showNotification(
+    private suspend fun showNotification(
         title: String,
         body: String,
         deepLink: String?,
         type: String,
+        avatarUrl: String?,
+        imageUrl: String?,
         originalMessage: RemoteMessage? = null
     ) {
         ensureNotificationChannel()
+
+        // Download images on IO thread
+        val avatarBitmap = avatarUrl?.let { downloadAndCircleCrop(it, 128) }
+        val imageBitmap = imageUrl?.let { downloadBitmap(it) }
 
         val intent = if (deepLink != null) {
             Intent(Intent.ACTION_VIEW, Uri.parse(deepLink), this, MainActivity::class.java)
@@ -96,18 +114,63 @@ class DesperseFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
+
+        // Avatar as large icon (circular, like Instagram)
+        if (avatarBitmap != null) {
+            builder.setLargeIcon(avatarBitmap)
+        }
+
+        // Post image in expanded notification
+        if (imageBitmap != null) {
+            builder.setStyle(
+                NotificationCompat.BigPictureStyle()
+                    .bigPicture(imageBitmap)
+                    .bigLargeIcon(null as Bitmap?) // Hide large icon when expanded
+            )
+        }
 
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(notificationId++, notification)
+        notificationManager.notify(notificationId++, builder.build())
     }
+
+    private suspend fun downloadBitmap(url: String): Bitmap? = withContext(Dispatchers.IO) {
+        try {
+            URL(url).openStream().use { BitmapFactory.decodeStream(it) }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to download image: $url", e)
+            null
+        }
+    }
+
+    private suspend fun downloadAndCircleCrop(url: String, sizePx: Int): Bitmap? =
+        withContext(Dispatchers.IO) {
+            try {
+                val raw = URL(url).openStream().use { BitmapFactory.decodeStream(it) }
+                    ?: return@withContext null
+                val scaled = Bitmap.createScaledBitmap(raw, sizePx, sizePx, true)
+                if (scaled !== raw) raw.recycle()
+
+                val output = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(output)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                val radius = sizePx / 2f
+                canvas.drawCircle(radius, radius, radius, paint)
+                paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                canvas.drawBitmap(scaled, 0f, 0f, paint)
+                scaled.recycle()
+                output
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to download avatar: $url", e)
+                null
+            }
+        }
 
     private fun ensureNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

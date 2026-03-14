@@ -7,12 +7,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.desperse.core.arweave.ArweaveUtils
 import app.desperse.data.PostUpdateManager
+import app.desperse.core.network.ApiResult
+import app.desperse.core.network.DesperseApi
+import app.desperse.core.network.safeApiCall
 import app.desperse.data.dto.request.CreateAssetRequest
 import app.desperse.data.dto.request.CreatePostRequest
 import app.desperse.data.dto.request.UpdatePostRequest
 import app.desperse.data.dto.response.EditStateResult
 import app.desperse.data.dto.response.MentionUser
 import app.desperse.data.model.Categories
+import app.desperse.ui.screens.settings.LICENSE_PRESETS
 import app.desperse.data.model.MediaConstants
 import app.desperse.data.model.Post
 import app.desperse.data.repository.ArweaveRepository
@@ -92,6 +96,13 @@ data class CreatePostUiState(
     val editState: EditStateResult? = null,
     val fieldLocking: FieldLocking = FieldLocking(),
 
+    // Copyright & licensing (for collectible/edition)
+    val copyrightLicensePreset: String? = null,
+    val copyrightLicenseCustom: String = "",
+    val copyrightHolder: String = "",
+    val copyrightRights: String = "",
+    val creatorDefaultsLoaded: Boolean = false,
+
     // Delete
     val showDeleteConfirmation: Boolean = false,
     val isDeleting: Boolean = false
@@ -136,7 +147,8 @@ class CreatePostViewModel @Inject constructor(
     private val uploadService: MediaUploadService,
     private val postUpdateManager: PostUpdateManager,
     private val arweaveRepository: ArweaveRepository,
-    private val transactionWalletManager: TransactionWalletManager
+    private val transactionWalletManager: TransactionWalletManager,
+    private val api: DesperseApi
 ) : ViewModel() {
 
     companion object {
@@ -390,6 +402,67 @@ class CreatePostViewModel @Inject constructor(
         _uiState.update { it.copy(mintWindowDurationHours = hours) }
     }
 
+    // === Copyright & Licensing ===
+
+    fun updateCopyrightLicensePreset(preset: String?) {
+        if (!_uiState.value.fieldLocking.areNftFieldsEditable) return
+        _uiState.update { it.copy(copyrightLicensePreset = preset) }
+    }
+
+    fun updateCopyrightLicenseCustom(text: String) {
+        if (!_uiState.value.fieldLocking.areNftFieldsEditable) return
+        if (text.length <= 100) _uiState.update { it.copy(copyrightLicenseCustom = text) }
+    }
+
+    fun updateCopyrightHolder(text: String) {
+        if (!_uiState.value.fieldLocking.areNftFieldsEditable) return
+        if (text.length <= 200) _uiState.update { it.copy(copyrightHolder = text) }
+    }
+
+    fun updateCopyrightRights(text: String) {
+        if (!_uiState.value.fieldLocking.areNftFieldsEditable) return
+        if (text.length <= 1000) _uiState.update { it.copy(copyrightRights = text) }
+    }
+
+    fun loadCreatorDefaults() {
+        val state = _uiState.value
+        // Only load once, only for create mode, only for NFT types
+        if (state.creatorDefaultsLoaded || state.isEditMode) return
+        val type = state.postType
+        if (type != "collectible" && type != "edition") return
+
+        _uiState.update { it.copy(creatorDefaultsLoaded = true) }
+
+        viewModelScope.launch {
+            when (val result = safeApiCall { api.getCreatorSettings() }) {
+                is ApiResult.Success -> {
+                    val data = result.data
+                    // Only apply defaults if user hasn't touched copyright fields
+                    _uiState.update { current ->
+                        if (current.copyrightLicensePreset != null ||
+                            current.copyrightLicenseCustom.isNotBlank() ||
+                            current.copyrightHolder.isNotBlank() ||
+                            current.copyrightRights.isNotBlank()
+                        ) {
+                            current // User already touched fields, don't overwrite
+                        } else {
+                            current.copy(
+                                copyrightLicensePreset = data.copyrightLicensePreset,
+                                copyrightLicenseCustom = data.copyrightLicenseCustom ?: "",
+                                copyrightHolder = data.copyrightHolder ?: "",
+                                copyrightRights = data.copyrightRights ?: ""
+                            )
+                        }
+                    }
+                }
+                is ApiResult.Error -> {
+                    // Non-critical, silently ignore
+                    Log.w(TAG, "Failed to load creator defaults: ${result.message}")
+                }
+            }
+        }
+    }
+
     // === Arweave Storage ===
 
     fun updateStorageType(type: String) {
@@ -566,6 +639,14 @@ class CreatePostViewModel @Inject constructor(
                 } else null
                 val mintWindowDurationHours = if (mintWindowEnabled == true) state.mintWindowDurationHours else null
 
+                // Copyright fields (collectible/edition only)
+                val isNftType = state.postType == "collectible" || state.postType == "edition"
+                val copyrightLicense = if (isNftType) {
+                    resolveCopyrightLicense(state.copyrightLicensePreset, state.copyrightLicenseCustom)
+                } else null
+                val copyrightHolder = if (isNftType) state.copyrightHolder.ifBlank { null } else null
+                val copyrightStatement = if (isNftType) state.copyrightRights.ifBlank { null } else null
+
                 val request = CreatePostRequest(
                     mediaUrl = mediaUrl,
                     coverUrl = state.coverMedia?.url,
@@ -589,7 +670,10 @@ class CreatePostViewModel @Inject constructor(
                     mintWindowEnabled = mintWindowEnabled,
                     mintWindowStartMode = mintWindowStartMode,
                     mintWindowStartTime = mintWindowStartTime,
-                    mintWindowDurationHours = mintWindowDurationHours
+                    mintWindowDurationHours = mintWindowDurationHours,
+                    copyrightLicense = copyrightLicense,
+                    copyrightHolder = copyrightHolder,
+                    copyrightStatement = copyrightStatement
                 )
 
                 val result = postRepository.createPost(request)
@@ -642,6 +726,13 @@ class CreatePostViewModel @Inject constructor(
                 } else null
                 val mintWindowDuration = if (mintWindowEnabled == true) state.mintWindowDurationHours else null
 
+                // Copyright fields (only when NFT fields are editable)
+                val copyrightLicense = if (isNftType && state.fieldLocking.areNftFieldsEditable) {
+                    resolveCopyrightLicense(state.copyrightLicensePreset, state.copyrightLicenseCustom)
+                } else null
+                val copyrightHolder = if (isNftType && state.fieldLocking.areNftFieldsEditable) state.copyrightHolder.ifBlank { null } else null
+                val copyrightStatement = if (isNftType && state.fieldLocking.areNftFieldsEditable) state.copyrightRights.ifBlank { null } else null
+
                 val request = UpdatePostRequest(
                     caption = state.caption.ifBlank { null },
                     categories = state.selectedCategories.ifEmpty { null },
@@ -656,7 +747,10 @@ class CreatePostViewModel @Inject constructor(
                     mintWindowEnabled = mintWindowEnabled,
                     mintWindowStartMode = mintWindowStartMode,
                     mintWindowStartTime = mintWindowStartTimeIso,
-                    mintWindowDurationHours = mintWindowDuration
+                    mintWindowDurationHours = mintWindowDuration,
+                    copyrightLicense = copyrightLicense,
+                    copyrightHolder = copyrightHolder,
+                    copyrightStatement = copyrightStatement
                 )
 
                 val result = postRepository.updatePost(postId, request)
@@ -726,6 +820,14 @@ class CreatePostViewModel @Inject constructor(
                 (mintWindowEndMs - mintWindowStartMs).toDouble() / 3600_000.0
             } else null
 
+            // Reverse-resolve copyright license to preset/custom
+            val resolvedPreset = if (post.copyrightLicense != null && post.copyrightLicense in LICENSE_PRESETS) {
+                post.copyrightLicense
+            } else if (post.copyrightLicense != null) {
+                "CUSTOM"
+            } else null
+            val resolvedCustom = if (resolvedPreset == "CUSTOM") post.copyrightLicense ?: "" else ""
+
             state.copy(
                 postType = post.type,
                 caption = post.caption ?: "",
@@ -739,7 +841,12 @@ class CreatePostViewModel @Inject constructor(
                 mintWindowEnabled = hasMintWindow,
                 mintWindowStartMode = if (hasMintWindow) "scheduled" else "now",
                 mintWindowStartTime = mintWindowStartMs,
-                mintWindowDurationHours = mintWindowDuration
+                mintWindowDurationHours = mintWindowDuration,
+                copyrightLicensePreset = resolvedPreset,
+                copyrightLicenseCustom = resolvedCustom,
+                copyrightHolder = post.copyrightHolder ?: "",
+                copyrightRights = post.copyrightStatement ?: "",
+                creatorDefaultsLoaded = true // Don't load creator defaults in edit mode
             )
         }
     }
@@ -830,5 +937,13 @@ class CreatePostViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(submitError = null) }
+    }
+
+    private fun resolveCopyrightLicense(preset: String?, custom: String): String? {
+        return when {
+            preset == null -> null
+            preset == "CUSTOM" -> custom.ifBlank { null }
+            else -> preset
+        }
     }
 }

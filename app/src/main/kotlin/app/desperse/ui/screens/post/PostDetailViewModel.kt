@@ -90,6 +90,7 @@ class PostDetailViewModel @Inject constructor(
         }
         loadPost()
         observePostUpdates()
+        observeFollowUpdates()
         observeCurrentUser()
     }
 
@@ -166,6 +167,15 @@ class PostDetailViewModel @Inject constructor(
                             if (u.id == userId) u.copy(isFollowing = newIsFollowing) else u
                         }
                     )
+                    // Broadcast to other screens
+                    postUpdateManager.emitFollowUpdate(userId, newIsFollowing)
+                    // Show confirmation
+                    val displayName = user.displayName ?: user.slug
+                    if (newIsFollowing) {
+                        toastManager.showSuccess("Following $displayName")
+                    } else {
+                        toastManager.showInfo("Unfollowed $displayName")
+                    }
                 }
                 .onFailure {
                     _uiState.value = _uiState.value.copy(
@@ -174,6 +184,7 @@ class PostDetailViewModel @Inject constructor(
                             if (u.id == userId) u.copy(isFollowing = isCurrentlyFollowing) else u
                         }
                     )
+                    toastManager.showError("Failed to update follow")
                 }
         }
     }
@@ -187,6 +198,18 @@ class PostDetailViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     currentUserAvatarUrl = user?.avatarUrl,
                     currentUserId = user?.id
+                )
+            }
+        }
+    }
+
+    private fun observeFollowUpdates() {
+        viewModelScope.launch {
+            postUpdateManager.followUpdates.collect { update ->
+                _uiState.value = _uiState.value.copy(
+                    collectors = _uiState.value.collectors.map { u ->
+                        if (u.id == update.userId) u.copy(isFollowing = update.isFollowing) else u
+                    }
                 )
             }
         }

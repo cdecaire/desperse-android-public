@@ -61,7 +61,11 @@ data class CreatePostRequest(
     val mintWindowEnabled: Boolean? = null,
     val mintWindowStartMode: String? = null, // "now" | "scheduled"
     val mintWindowStartTime: String? = null, // ISO datetime
-    val mintWindowDurationHours: Double? = null
+    val mintWindowDurationHours: Double? = null,
+    // Copyright & licensing
+    val copyrightLicense: String? = null,
+    val copyrightHolder: String? = null,
+    val copyrightStatement: String? = null
 )
 
 @Serializable
@@ -90,7 +94,19 @@ data class UpdatePostRequest(
     val mintWindowEnabled: Boolean? = null,
     val mintWindowStartMode: String? = null,
     val mintWindowStartTime: String? = null,
-    val mintWindowDurationHours: Double? = null
+    val mintWindowDurationHours: Double? = null,
+    // Copyright & licensing
+    val copyrightLicense: String? = null,
+    val copyrightHolder: String? = null,
+    val copyrightStatement: String? = null
+)
+
+@Serializable
+data class UpdateCreatorSettingsRequest(
+    val copyrightLicensePreset: String? = null,
+    val copyrightLicenseCustom: String? = null,
+    val copyrightHolder: String? = null,
+    val copyrightRights: String? = null
 )
 
 @Serializable

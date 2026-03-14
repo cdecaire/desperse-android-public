@@ -101,8 +101,10 @@ fun FeedScreen(
     val scope = rememberCoroutineScope()
     val activity = androidx.compose.ui.platform.LocalContext.current as Activity
 
-    // Lazy list state for scroll detection
-    val listState = rememberLazyListState()
+    // Per-tab lazy list states to preserve scroll position
+    val forYouListState = rememberLazyListState()
+    val followingListState = rememberLazyListState()
+    val listState = if (selectedTab == "for-you") forYouListState else followingListState
 
     // Show new posts toast when scrolled down and new posts exist
     val showNewPostsToast by remember {

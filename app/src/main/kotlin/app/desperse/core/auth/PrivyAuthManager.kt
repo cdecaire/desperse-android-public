@@ -88,6 +88,12 @@ class PrivyAuthManager @Inject constructor(
 
         _authState.value = AuthState.Loading
 
+        // Pre-load cached token from encrypted prefs so the AuthInterceptor has
+        // a token available even before Privy SDK fully initializes. This prevents
+        // early API calls (e.g., feed load) from going unauthenticated if Privy
+        // is slow to return a fresh token.
+        tokenStorage.loadCachedToken()
+
         try {
             // Initialize Privy on main thread
             withContext(Dispatchers.Main) {
