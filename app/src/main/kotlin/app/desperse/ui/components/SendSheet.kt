@@ -1,6 +1,5 @@
 package app.desperse.ui.components
 
-import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.Image
@@ -27,7 +26,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,13 +43,13 @@ import androidx.compose.ui.unit.dp
 import app.desperse.R
 import app.desperse.data.dto.response.TokenBalance
 import app.desperse.ui.screens.wallet.SendState
-import app.desperse.ui.screens.wallet.SendViewModel
 import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneSuccess
 import kotlinx.coroutines.delay
 
 private val BASE58_REGEX = Regex("^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+private val DECIMAL_REGEX = Regex("^\\d*\\.?\\d*$")
 
 // SOL reserve kept for fees when using "Max" on SOL sends
 private const val SOL_FEE_RESERVE = 0.005
@@ -83,8 +81,7 @@ fun SendSheet(
         (amountText.split(".").getOrNull(1)?.length ?: 0) > maxDecimals
 
     val isInProgress = sendState is SendState.Preparing ||
-        sendState is SendState.Signing ||
-        sendState is SendState.Submitting
+        sendState is SendState.Signing
 
     val canSend = isValidAddress && !isSelfSend && amount > 0 && !exceedsBalance &&
         !tooManyDecimals && !isInProgress && sendState !is SendState.Submitted
@@ -245,7 +242,7 @@ fun SendSheet(
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { text ->
-                    if (text.isEmpty() || text.matches(Regex("^\\d*\\.?\\d*$"))) {
+                    if (text.isEmpty() || text.matches(DECIMAL_REGEX)) {
                         amountText = text
                     }
                 },
@@ -352,7 +349,6 @@ fun SendSheet(
                         text = when (sendState) {
                             is SendState.Preparing -> "Preparing..."
                             is SendState.Signing -> "Approve in wallet..."
-                            is SendState.Submitting -> "Submitting..."
                             is SendState.Idle, is SendState.Submitted, is SendState.Failed -> "Sending..."
                         }
                     )

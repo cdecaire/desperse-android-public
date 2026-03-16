@@ -24,7 +24,6 @@ sealed class SendState {
     data object Idle : SendState()
     data object Preparing : SendState()
     data object Signing : SendState()
-    data object Submitting : SendState()
     data class Submitted(val signature: String) : SendState()
     data class Failed(val error: String, val canRetry: Boolean = true) : SendState()
 }
@@ -62,7 +61,6 @@ class SendViewModel @Inject constructor(
         val currentState = _uiState.value.sendState
         if (currentState is SendState.Preparing ||
             currentState is SendState.Signing ||
-            currentState is SendState.Submitting ||
             currentState is SendState.Submitted
         ) return
 
@@ -89,13 +87,19 @@ class SendViewModel @Inject constructor(
         }
 
         val walletAddress = transactionWalletManager.getActiveWalletAddress()
+        if (walletAddress == null) {
+            _uiState.update {
+                it.copy(sendState = SendState.Failed("No wallet address available", canRetry = false))
+            }
+            return
+        }
 
         viewModelScope.launch {
             // Step 1: Prepare (get unsigned transaction from server)
             _uiState.update { it.copy(sendState = SendState.Preparing) }
             Log.d(TAG, "Send Step 1: Preparing transfer $amount $asset to ${toAddress.take(8)}...")
 
-            sendRepository.prepareSend(toAddress, amount, asset, walletAddress ?: "")
+            sendRepository.prepareSend(toAddress, amount, asset, walletAddress)
                 .onSuccess { prepareResult ->
                     Log.d(TAG, "Got unsigned send tx")
 
@@ -159,6 +163,11 @@ class SendViewModel @Inject constructor(
 
     fun resetState() {
         _uiState.update { it.copy(sendState = SendState.Idle) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        pendingActivity = null
     }
 
     private fun mapSigningError(error: Throwable): String = when (error) {

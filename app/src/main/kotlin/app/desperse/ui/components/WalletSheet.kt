@@ -325,11 +325,6 @@ private const val SOL_NATIVE_MINT = "So11111111111111111111111111111111111111112
 private const val SOL_NATIVE_MINT_HELIUS = "So11111111111111111111111111111111111111111"
 private const val USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
-/**
- * Sendable token mints — only these tokens support the Send flow.
- */
-private val SENDABLE_MINTS = setOf(SOL_NATIVE_MINT, SOL_NATIVE_MINT_HELIUS, USDC_MAINNET_MINT, SKR_MINT_ADDRESS)
-
 private fun mintToAssetKey(mint: String): String? = when (mint) {
     SOL_NATIVE_MINT, SOL_NATIVE_MINT_HELIUS -> "sol"
     USDC_MAINNET_MINT -> "usdc"
