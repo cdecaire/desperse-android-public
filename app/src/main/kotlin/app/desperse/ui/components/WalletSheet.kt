@@ -1,5 +1,6 @@
 package app.desperse.ui.components
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +54,7 @@ import app.desperse.data.dto.response.TokenBalance
 import app.desperse.data.dto.response.WalletActivityItem
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
+import app.desperse.ui.screens.wallet.SendViewModel
 import app.desperse.ui.screens.wallet.WalletUiState
 import app.desperse.ui.screens.wallet.WalletViewModel
 import app.desperse.ui.theme.DesperseSizes
@@ -85,13 +87,21 @@ interface WalletSheetEntryPoint {
 fun WalletSheet(
     isOpen: Boolean,
     onDismiss: () -> Unit,
-    viewModel: WalletViewModel = hiltViewModel()
+    viewModel: WalletViewModel = hiltViewModel(),
+    sendViewModel: SendViewModel = hiltViewModel()
 ) {
     var activeTab by remember { mutableStateOf("tokens") }
     var nftLayout by remember { mutableStateOf("grid") } // "grid" or "list"
     var showDepositSheet by remember { mutableStateOf(false) }
+    var selectedTokenForSend by remember { mutableStateOf<TokenBalance?>(null) }
     val uiState by viewModel.uiState.collectAsState()
+    val sendUiState by sendViewModel.uiState.collectAsState()
     val primaryAddress = uiState.wallets.firstOrNull()?.address
+
+    // Wire up wallet refresh on successful send
+    LaunchedEffect(Unit) {
+        sendViewModel.onSendSuccess = { viewModel.refresh() }
+    }
 
     // Load wallet data when sheet opens
     LaunchedEffect(isOpen) {
@@ -152,7 +162,14 @@ fun WalletSheet(
                         ) {
                             when (activeTab) {
                                 "tokens" -> {
-                                    TokensContent(uiState)
+                                    TokensContent(
+                                        uiState = uiState,
+                                        onTokenClick = { token ->
+                                            if (mintToAssetKey(token.mint) != null) {
+                                                selectedTokenForSend = token
+                                            }
+                                        }
+                                    )
                                     // Deposit Button
                                     Spacer(modifier = Modifier.height(DesperseSpacing.lg))
                                     DesperseTextButton(
@@ -179,6 +196,28 @@ fun WalletSheet(
             DepositSheet(
                 walletAddress = primaryAddress,
                 onDismiss = { showDepositSheet = false }
+            )
+        }
+
+        // Send Sheet
+        val sendToken = selectedTokenForSend
+        val sendAsset = sendToken?.let { mintToAssetKey(it.mint) }
+        if (sendToken != null && sendAsset != null && primaryAddress != null) {
+            val activity = LocalContext.current as? Activity
+            SendSheet(
+                token = sendToken,
+                asset = sendAsset,
+                senderAddress = primaryAddress,
+                sendState = sendUiState.sendState,
+                onSend = { toAddress, amount ->
+                    if (activity != null) {
+                        sendViewModel.send(toAddress, amount, sendAsset, activity)
+                    }
+                },
+                onDismiss = {
+                    selectedTokenForSend = null
+                    sendViewModel.resetState()
+                }
             )
         }
     }
@@ -288,6 +327,18 @@ private const val SOL_NATIVE_MINT_HELIUS = "So1111111111111111111111111111111111
 private const val USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
 /**
+ * Sendable token mints — only these tokens support the Send flow.
+ */
+private val SENDABLE_MINTS = setOf(SOL_NATIVE_MINT, SOL_NATIVE_MINT_HELIUS, USDC_MAINNET_MINT, SKR_MINT_ADDRESS)
+
+private fun mintToAssetKey(mint: String): String? = when (mint) {
+    SOL_NATIVE_MINT, SOL_NATIVE_MINT_HELIUS -> "sol"
+    USDC_MAINNET_MINT -> "usdc"
+    SKR_MINT_ADDRESS -> "skr"
+    else -> null
+}
+
+/**
  * Check if a token is the SKR (Seeker) token by its mint address.
  */
 private fun isSkrToken(token: TokenBalance): Boolean {
@@ -316,7 +367,10 @@ private val placeholderSkr = TokenBalance(
 )
 
 @Composable
-private fun TokensContent(uiState: WalletUiState) {
+private fun TokensContent(
+    uiState: WalletUiState,
+    onTokenClick: (TokenBalance) -> Unit = {}
+) {
     // Deduplicate tokens by mint (keep the one with highest balance)
     val tokens = uiState.tokens
         .groupBy { it.mint }
@@ -337,13 +391,17 @@ private fun TokensContent(uiState: WalletUiState) {
         verticalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
     ) {
         // App tokens - always shown, 24h change from server
-        TokenCard(token = skrToken, priceChange = skrToken.changePct24h)
-        TokenCard(token = solToken, priceChange = solToken.changePct24h)
-        TokenCard(token = usdcToken, priceChange = usdcToken.changePct24h)
+        TokenCard(token = skrToken, priceChange = skrToken.changePct24h, onClick = { onTokenClick(skrToken) })
+        TokenCard(token = solToken, priceChange = solToken.changePct24h, onClick = { onTokenClick(solToken) })
+        TokenCard(token = usdcToken, priceChange = usdcToken.changePct24h, onClick = { onTokenClick(usdcToken) })
 
         // Any other tokens in the wallet
         otherTokens.forEach { token ->
-            TokenCard(token = token)
+            val isSendable = mintToAssetKey(token.mint) != null
+            TokenCard(
+                token = token,
+                onClick = if (isSendable) ({ onTokenClick(token) }) else null
+            )
         }
     }
 }
@@ -351,13 +409,15 @@ private fun TokensContent(uiState: WalletUiState) {
 @Composable
 private fun TokenCard(
     token: TokenBalance,
-    priceChange: Double? = null
+    priceChange: Double? = null,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(DesperseSpacing.md),
         verticalAlignment = Alignment.CenterVertically
     ) {

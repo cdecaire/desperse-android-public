@@ -598,6 +598,15 @@ data class TipStatsResult(
     val tipCount: Int = 0
 )
 
+// === Wallet Send ===
+
+@Serializable
+data class PrepareSendResult(
+    val transactionBase64: String,
+    val blockhash: String? = null,
+    val lastValidBlockHeight: Long? = null
+)
+
 // === Creator Settings ===
 
 @Serializable

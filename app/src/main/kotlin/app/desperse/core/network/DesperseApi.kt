@@ -407,6 +407,13 @@ interface DesperseApi {
         @Query("userId") userId: String
     ): Response<ApiEnvelope<TipStatsResult>>
 
+    // === Wallet Send ===
+
+    @POST("api/v1/wallet/send/prepare")
+    suspend fun prepareSend(
+        @Body request: PrepareSendRequest
+    ): Response<ApiEnvelope<PrepareSendResult>>
+
     // === Download Auth ===
 
     @POST("api/v1/downloads/nonce")

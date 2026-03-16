@@ -212,6 +212,16 @@ data class ConfirmTipRequest(
     val txSignature: String
 )
 
+// === Wallet Send ===
+
+@Serializable
+data class PrepareSendRequest(
+    val toAddress: String,
+    val amount: String,
+    val asset: String,
+    val walletAddress: String
+)
+
 // === Download Auth ===
 
 @Serializable
