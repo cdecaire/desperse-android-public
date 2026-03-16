@@ -90,6 +90,8 @@ fun WalletSheet(
     viewModel: WalletViewModel = hiltViewModel(),
     sendViewModel: SendViewModel = hiltViewModel()
 ) {
+    // Resolve Activity at the screen level (before entering ModalBottomSheet content)
+    val activity = LocalContext.current as? Activity
     var activeTab by remember { mutableStateOf("tokens") }
     var nftLayout by remember { mutableStateOf("grid") } // "grid" or "list"
     var showDepositSheet by remember { mutableStateOf(false) }
@@ -202,17 +204,14 @@ fun WalletSheet(
         // Send Sheet
         val sendToken = selectedTokenForSend
         val sendAsset = sendToken?.let { mintToAssetKey(it.mint) }
-        if (sendToken != null && sendAsset != null && primaryAddress != null) {
-            val activity = LocalContext.current as? Activity
+        if (sendToken != null && sendAsset != null && primaryAddress != null && activity != null) {
             SendSheet(
                 token = sendToken,
                 asset = sendAsset,
                 senderAddress = primaryAddress,
                 sendState = sendUiState.sendState,
                 onSend = { toAddress, amount ->
-                    if (activity != null) {
-                        sendViewModel.send(toAddress, amount, sendAsset, activity)
-                    }
+                    sendViewModel.send(toAddress, amount, sendAsset, activity)
                 },
                 onDismiss = {
                     selectedTokenForSend = null
