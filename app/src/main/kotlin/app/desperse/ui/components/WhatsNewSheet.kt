@@ -37,6 +37,9 @@ val changelogs = mapOf(
     9 to WhatsNewContent(
         version = "1.0.8",
         items = listOf(
+            "Copyright & licensing for collectibles and editions",
+            "Send SOL, USDC, or SKR directly from your wallet",
+            "Export your embedded wallet's private key from settings",
             "Share posts with friends via the share button",
             "Bug fixes and stability improvements",
         )

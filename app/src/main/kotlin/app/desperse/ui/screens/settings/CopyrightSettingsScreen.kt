@@ -31,7 +31,17 @@ val LICENSE_PRESETS = listOf(
     "CC-BY-4.0",
     "CC-BY-SA-4.0",
     "CC-BY-NC-4.0",
+    "CC-BY-NC-ND-4.0",
     "CUSTOM"
+)
+
+val SUGGESTED_STATEMENTS = mapOf(
+    "All Rights Reserved" to "All rights reserved. No reproduction, distribution, or derivative works permitted without written permission from the rights holder.",
+    "CC0" to "This work is dedicated to the public domain. You may copy, modify, distribute, and perform the work, even for commercial purposes, without asking permission.",
+    "CC-BY-4.0" to "You are free to share and adapt this work for any purpose, including commercially, as long as you give appropriate credit to the original creator.",
+    "CC-BY-SA-4.0" to "You are free to share and adapt this work for any purpose, including commercially, as long as you give appropriate credit and distribute any derivative works under the same license.",
+    "CC-BY-NC-4.0" to "You are free to share and adapt this work as long as you give appropriate credit. Commercial use is not permitted without written permission from the rights holder.",
+    "CC-BY-NC-ND-4.0" to "You may share this work as long as you give appropriate credit. No commercial use or derivative works are permitted without written permission from the rights holder."
 )
 
 data class CopyrightSettingsState(
@@ -289,6 +299,16 @@ fun CopyrightSettingsScreen(
                             }
                         }
                     )
+
+                    // Use suggested statement button
+                    val suggestedStatement = state.licensePreset?.let { SUGGESTED_STATEMENTS[it] }
+                    if (suggestedStatement != null && state.copyrightRights != suggestedStatement) {
+                        TextButton(
+                            onClick = { viewModel.updateCopyrightRights(suggestedStatement) }
+                        ) {
+                            Text("Use suggested statement")
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 

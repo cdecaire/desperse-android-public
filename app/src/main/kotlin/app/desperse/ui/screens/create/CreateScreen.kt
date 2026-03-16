@@ -60,6 +60,7 @@ import app.desperse.ui.screens.create.components.PermanentStorageSection
 import app.desperse.ui.screens.create.components.PostTypeSelector
 import app.desperse.ui.screens.create.components.TimedEditionSection
 import app.desperse.ui.screens.settings.LICENSE_PRESETS
+import app.desperse.ui.screens.settings.SUGGESTED_STATEMENTS
 import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneCollectible
@@ -695,5 +696,16 @@ private fun CopyrightSection(
                 }
             }
         )
+
+        // Use suggested statement button
+        val suggestedStatement = licensePreset?.let { SUGGESTED_STATEMENTS[it] }
+        if (suggestedStatement != null && copyrightRights != suggestedStatement && enabled) {
+            TextButton(
+                onClick = { onRightsChange(suggestedStatement) },
+                colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
+            ) {
+                Text("Use suggested statement")
+            }
+        }
     }
 }

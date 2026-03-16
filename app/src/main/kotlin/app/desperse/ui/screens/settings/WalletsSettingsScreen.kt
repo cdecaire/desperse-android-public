@@ -4,6 +4,7 @@ import android.app.Activity
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
+import app.desperse.core.util.openInAppBrowser
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -1074,7 +1075,7 @@ private fun WalletRow(
                         FaIcon(FaIcons.ArrowUpRightSimple, size = 14.dp, tint = MaterialTheme.colorScheme.onSurface)
                     },
                     onClick = {
-                        Toast.makeText(context, "Export via desperse.com on web", Toast.LENGTH_SHORT).show()
+                        context.openInAppBrowser("https://desperse.com/export-wallet")
                         showMenu = false
                     }
                 )
