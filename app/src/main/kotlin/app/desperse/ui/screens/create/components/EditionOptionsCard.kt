@@ -39,14 +39,11 @@ fun EditionOptionsCard(
     currency: String,
     maxSupplyEnabled: Boolean,
     maxSupplyDisplay: String,
-    protectDownload: Boolean,
-    showProtectDownload: Boolean,
     pricingEnabled: Boolean,
     onPriceChange: (String) -> Unit,
     onCurrencyChange: (String) -> Unit,
     onMaxSupplyToggle: (Boolean) -> Unit,
     onMaxSupplyChange: (String) -> Unit,
-    onProtectDownloadChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val editionColor = toneEdition()
@@ -180,26 +177,5 @@ fun EditionOptionsCard(
             )
         }
 
-        // Protect download
-        if (showProtectDownload) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Protect Download", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                    Text(
-                        "Gate file downloads behind purchase",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = protectDownload,
-                    onCheckedChange = onProtectDownloadChange
-                )
-            }
-        }
     }
 }

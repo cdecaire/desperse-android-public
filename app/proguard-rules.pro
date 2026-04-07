@@ -58,3 +58,7 @@
 
 # === COIL (ships NO consumer rules) ===
 -dontwarn coil.**
+
+# === FILAMENT 3D ENGINE (uses JNI for native rendering) ===
+-keep class com.google.android.filament.** { *; }
+-dontwarn com.google.android.filament.**

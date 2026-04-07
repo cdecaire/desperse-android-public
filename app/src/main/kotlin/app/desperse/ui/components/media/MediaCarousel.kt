@@ -22,6 +22,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import app.desperse.data.model.PostAsset
+import app.desperse.ui.components.FaIcon
+import app.desperse.ui.components.FaIconStyle
+import app.desperse.ui.components.FaIcons
 import app.desperse.ui.theme.DesperseSpacing
 
 /**
@@ -46,7 +49,7 @@ fun MediaCarousel(
     coverUrl: String? = null,
     maxAspectRatio: Float = 1.25f,
     useFixedAspectRatio: Boolean = true,
-    onClick: (index: Int) -> Unit = {},
+    onClick: ((index: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Fixed ratio for stable scroll (4:5 = 0.8 width/height)
@@ -77,7 +80,7 @@ fun MediaCarousel(
                             maxAspectRatio = maxAspectRatio,
                             fixedAspectRatio = fixedRatio,
                             contentDescription = "Image ${page + 1} of ${assets.size}",
-                            onClick = { onClick(page) },
+                            onClick = onClick?.let { fn -> { fn(page) } },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -87,7 +90,6 @@ fun MediaCarousel(
                             coverUrl = coverUrl,
                             maxAspectRatio = maxAspectRatio,
                             useFixedAspectRatio = useFixedAspectRatio,
-                            onClick = { onClick(page) },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -95,8 +97,7 @@ fun MediaCarousel(
                         AudioPlayer(
                             audioUrl = asset.url,
                             coverUrl = coverUrl,
-                            maxAspectRatio = maxAspectRatio,
-                            onClick = { onClick(page) },
+                            useFixedAspectRatio = useFixedAspectRatio,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -104,7 +105,7 @@ fun MediaCarousel(
                         DocumentPreview(
                             documentUrl = asset.url,
                             coverUrl = coverUrl,
-                            onClick = { onClick(page) },
+                            onClick = onClick?.let { fn -> { fn(page) } },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -112,7 +113,8 @@ fun MediaCarousel(
                         Model3DPreview(
                             modelUrl = asset.url,
                             coverUrl = coverUrl,
-                            onClick = { onClick(page) },
+                            interactive = !useFixedAspectRatio,
+                            onClick = onClick?.let { fn -> { fn(page) } },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -197,14 +199,14 @@ private fun DotsIndicator(
 fun DocumentPreview(
     documentUrl: String,
     coverUrl: String? = null,
-    onClick: () -> Unit = {},
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable { onClick() },
+            .let { if (onClick != null) it.clickable { onClick() } else it },
         contentAlignment = Alignment.Center
     ) {
         if (coverUrl != null) {
@@ -225,17 +227,11 @@ fun DocumentPreview(
                 .background(Color.Black.copy(alpha = 0.6f)),
             contentAlignment = Alignment.Center
         ) {
-            val extension = documentUrl.substringAfterLast('.').lowercase().substringBefore('?')
-            val icon = when (extension) {
-                "pdf" -> app.desperse.ui.components.FaIcons.Download // Using download as placeholder
-                "zip" -> app.desperse.ui.components.FaIcons.Download
-                else -> app.desperse.ui.components.FaIcons.Download
-            }
-            app.desperse.ui.components.FaIcon(
-                icon = icon,
+            FaIcon(
+                icon = FaIcons.Download,
                 size = 24.dp,
                 tint = Color.White,
-                style = app.desperse.ui.components.FaIconStyle.Solid,
+                style = FaIconStyle.Solid,
                 contentDescription = "Download document"
             )
         }
@@ -244,21 +240,38 @@ fun DocumentPreview(
 }
 
 /**
- * 3D Model preview placeholder
- * Shows cover image with 3D badge
+ * 3D Model preview with two modes:
+ *
+ * Feed mode (interactive = false, default): Shows cover image with a centered
+ * 3D cube badge. Tapping navigates to the post detail via [onClick].
+ *
+ * Detail mode (interactive = true): Renders the GLB model inline using Filament
+ * with orbit/zoom/pan gestures. Falls back to cover image if model URL is missing.
  */
 @Composable
 fun Model3DPreview(
     modelUrl: String,
     coverUrl: String? = null,
-    onClick: () -> Unit = {},
+    interactive: Boolean = false,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    // In interactive/detail mode, render the 3D viewer directly
+    if (interactive && modelUrl.isNotBlank()) {
+        ModelViewer(
+            modelSource = ModelSource.Url(modelUrl),
+            // Square aspect ratio so the viewer has bounded height in LazyColumn
+            modifier = modifier.aspectRatio(1f)
+        )
+        return
+    }
+
+    // Feed mode: cover image + 3D badge overlay
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable { onClick() },
+            .let { if (onClick != null) it.clickable { onClick() } else it },
         contentAlignment = Alignment.Center
     ) {
         if (coverUrl != null) {
@@ -270,40 +283,27 @@ fun Model3DPreview(
             )
         }
 
-        // 3D badge overlay
+        // 3D indicator badge (bottom right — matches video/audio mute button position)
         Box(
             modifier = Modifier
-                .align(Alignment.Center)
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.6f)),
-            contentAlignment = Alignment.Center
-        ) {
-            app.desperse.ui.components.FaIcon(
-                icon = app.desperse.ui.components.FaIcons.Cube,
-                size = 24.dp,
-                tint = Color.White,
-                style = app.desperse.ui.components.FaIconStyle.Solid,
-                contentDescription = "3D model"
-            )
-        }
-
-        // 3D label
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
+                .align(Alignment.BottomEnd)
                 .padding(DesperseSpacing.sm)
-                .background(
-                    color = Color.Black.copy(alpha = 0.5f),
-                    shape = CircleShape
-                )
-                .padding(horizontal = 8.dp, vertical = 4.dp)
         ) {
-            androidx.compose.material3.Text(
-                text = "3D",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White
-            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                FaIcon(
+                    icon = FaIcons.Cube,
+                    size = 16.dp,
+                    tint = Color.White,
+                    style = FaIconStyle.Solid,
+                    contentDescription = "3D model"
+                )
+            }
         }
     }
 }

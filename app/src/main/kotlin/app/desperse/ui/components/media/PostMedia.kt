@@ -28,7 +28,7 @@ fun PostMedia(
     post: Post,
     maxAspectRatio: Float = 1.25f,
     useFixedAspectRatio: Boolean = true,
-    onClick: () -> Unit = {},
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     // Fixed ratio for stable scroll (4:5 = 0.8 width/height)
@@ -41,13 +41,13 @@ fun PostMedia(
             coverUrl = post.coverUrl,
             maxAspectRatio = maxAspectRatio,
             useFixedAspectRatio = useFixedAspectRatio,
-            onClick = { onClick() },
+            onClick = onClick?.let { fn -> { fn() } },
             modifier = modifier.fillMaxWidth()
         )
         return
     }
 
-    // Single asset post - detect media type from URL
+    // Single asset post - detect media type
     val mediaUrl = post.mediaUrl
     val coverUrl = post.coverUrl
     // Use mediaUrl if available, fallback to coverUrl for display
@@ -56,7 +56,21 @@ fun PostMedia(
     // If no URL available, don't render anything
     if (effectiveUrl == null) return
 
-    val mediaType = remember(mediaUrl) { detectMediaType(mediaUrl) }
+    // Detect media type using a two-pass approach:
+    // 1. Try URL extension first (cheap, specific: .mp3→AUDIO, .glb→3D, .mp4→VIDEO)
+    // 2. If URL extension is unrecognized (IMAGE default), try MIME type fallback
+    //    (handles Vercel Blob URLs that strip extensions like "upload.bin")
+    val assetMime = post.assets?.firstOrNull()?.mimeType
+    val downloadMime = post.downloadableAssets?.firstOrNull()?.mimeType
+    val mediaType = remember(mediaUrl, post.mediaMimeType, assetMime, downloadMime) {
+        val urlType = detectMediaType(mediaUrl)
+        if (urlType != MediaType.IMAGE) {
+            urlType
+        } else {
+            val mime = post.mediaMimeType ?: assetMime ?: downloadMime
+            if (mime != null) detectMediaTypeFromMime(mime) else urlType
+        }
+    }
 
     when (mediaType) {
         MediaType.IMAGE -> {
@@ -78,7 +92,6 @@ fun PostMedia(
                     coverUrl = coverUrl,
                     maxAspectRatio = maxAspectRatio,
                     useFixedAspectRatio = useFixedAspectRatio,
-                    onClick = onClick,
                     modifier = modifier.fillMaxWidth()
                 )
             } else if (coverUrl != null) {
@@ -100,18 +113,7 @@ fun PostMedia(
                 AudioPlayer(
                     audioUrl = mediaUrl,
                     coverUrl = coverUrl,
-                    maxAspectRatio = maxAspectRatio,
-                    onClick = onClick,
-                    modifier = modifier.fillMaxWidth()
-                )
-            } else if (coverUrl != null) {
-                // Fallback to showing cover as image
-                BlurredBackgroundImage(
-                    imageUrl = coverUrl,
-                    maxAspectRatio = maxAspectRatio,
-                    fixedAspectRatio = fixedRatio,
-                    contentDescription = "Post cover",
-                    onClick = onClick,
+                    useFixedAspectRatio = useFixedAspectRatio,
                     modifier = modifier.fillMaxWidth()
                 )
             }
@@ -130,6 +132,7 @@ fun PostMedia(
             Model3DPreview(
                 modelUrl = mediaUrl ?: "",
                 coverUrl = coverUrl,
+                interactive = !useFixedAspectRatio,
                 onClick = onClick,
                 modifier = modifier.fillMaxWidth()
             )
@@ -172,7 +175,6 @@ fun SingleMedia(
                 videoUrl = mediaUrl,
                 coverUrl = coverUrl,
                 maxAspectRatio = maxAspectRatio,
-                onClick = onClick,
                 modifier = modifier.fillMaxWidth()
             )
         }
@@ -181,8 +183,7 @@ fun SingleMedia(
             AudioPlayer(
                 audioUrl = mediaUrl,
                 coverUrl = coverUrl,
-                maxAspectRatio = maxAspectRatio,
-                onClick = onClick,
+                useFixedAspectRatio = false,
                 modifier = modifier.fillMaxWidth()
             )
         }

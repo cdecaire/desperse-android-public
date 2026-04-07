@@ -20,6 +20,10 @@ import app.desperse.ui.screens.settings.LICENSE_PRESETS
 import app.desperse.data.model.MediaConstants
 import app.desperse.data.model.Post
 import app.desperse.data.repository.ArweaveRepository
+import app.desperse.data.repository.DeviceAudioItem
+import app.desperse.data.repository.DeviceMediaItem
+import app.desperse.data.repository.DeviceMediaRepository
+import app.desperse.data.repository.MediaAlbum
 import app.desperse.data.repository.PostRepository
 import app.desperse.core.wallet.TransactionWalletManager
 import app.desperse.ui.util.MintWindowUtils
@@ -33,7 +37,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 
@@ -49,6 +56,8 @@ data class UploadedMediaItem(
     val uploadState: UploadState = UploadState.Idle
 )
 
+enum class MediaTab { Image, Video, Audio, ThreeD }
+
 data class CreatePostUiState(
     // Post type
     val postType: String = "post", // "post", "collectible", "edition"
@@ -60,6 +69,9 @@ data class CreatePostUiState(
     // Media (consolidated: all items in one list)
     val mediaItems: List<UploadedMediaItem> = emptyList(),
     val coverMedia: UploadedMediaItem? = null,
+
+    // Attachments (downloadable files: PDF, ZIP, EPUB — for collectible/edition)
+    val attachments: List<UploadedMediaItem> = emptyList(),
 
     // NFT fields
     val nftName: String = "",
@@ -105,7 +117,22 @@ data class CreatePostUiState(
 
     // Delete
     val showDeleteConfirmation: Boolean = false,
-    val isDeleting: Boolean = false
+    val isDeleting: Boolean = false,
+
+    // Gallery state (Step 1 - media selection)
+    val mediaTab: MediaTab = MediaTab.Image,
+    val galleryItems: List<DeviceMediaItem> = emptyList(),
+    val galleryAlbums: List<MediaAlbum> = emptyList(),
+    val selectedAlbumId: String? = null, // null = Recents
+    val selectedMediaItems: List<DeviceMediaItem> = emptyList(),
+    val galleryPermissionGranted: Boolean = false,
+    val galleryPermissionDenied: Boolean = false,
+    val isLoadingGallery: Boolean = false,
+    val galleryHasMore: Boolean = true,
+    val audioFile: UploadedMediaItem? = null,   // Audio tab: selected audio file
+    val threeDFile: UploadedMediaItem? = null,   // 3D tab: selected 3D file
+    val deviceAudioFiles: List<DeviceAudioItem> = emptyList(), // Audio files on device
+    val isLoadingAudioFiles: Boolean = false
 )
 
 data class FieldLocking(
@@ -148,13 +175,15 @@ class CreatePostViewModel @Inject constructor(
     private val postUpdateManager: PostUpdateManager,
     private val arweaveRepository: ArweaveRepository,
     private val transactionWalletManager: TransactionWalletManager,
-    private val api: DesperseApi
+    private val api: DesperseApi,
+    private val deviceMediaRepository: DeviceMediaRepository
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "CreatePostViewModel"
         private const val MAX_ITEMS = 10
         private const val MAX_DOWNLOADABLE = 1
+        private const val GALLERY_PAGE_SIZE = 80
 
         // Price conversion constants
         const val SOL_DECIMALS = 9
@@ -168,6 +197,220 @@ class CreatePostViewModel @Inject constructor(
 
     private val _events = MutableSharedFlow<CreatePostEvent>(extraBufferCapacity = 5)
     val events: SharedFlow<CreatePostEvent> = _events.asSharedFlow()
+
+    private var galleryOffset = 0
+
+    // === Gallery (Step 1) ===
+
+    fun onPermissionResult(granted: Boolean) {
+        _uiState.update { it.copy(
+            galleryPermissionGranted = granted,
+            galleryPermissionDenied = !granted
+        ) }
+        if (granted) {
+            loadGalleryPage(reset = true)
+        }
+    }
+
+    fun loadGalleryPage(reset: Boolean = false) {
+        if (!reset && (_uiState.value.isLoadingGallery || !_uiState.value.galleryHasMore)) return
+
+        if (reset) galleryOffset = 0
+
+        _uiState.update { it.copy(isLoadingGallery = true) }
+
+        viewModelScope.launch {
+            val tab = _uiState.value.mediaTab
+            val items = withContext(Dispatchers.IO) {
+                when (tab) {
+                    MediaTab.Video -> deviceMediaRepository.queryMedia(
+                        albumId = DeviceMediaRepository.ALBUM_ALL_VIDEOS,
+                        offset = galleryOffset,
+                        limit = GALLERY_PAGE_SIZE
+                    )
+                    // Image, Audio (cover selection) — images only
+                    else -> deviceMediaRepository.queryMedia(
+                        albumId = DeviceMediaRepository.ALBUM_ALL_PHOTOS,
+                        offset = galleryOffset,
+                        limit = GALLERY_PAGE_SIZE
+                    )
+                }
+            }
+
+            galleryOffset += items.size
+
+            _uiState.update { state ->
+                val newItems = if (reset) items else state.galleryItems + items
+                state.copy(
+                    galleryItems = newItems,
+                    galleryHasMore = items.size >= GALLERY_PAGE_SIZE,
+                    isLoadingGallery = false
+                )
+            }
+        }
+    }
+
+    fun switchMediaTab(tab: MediaTab) {
+        if (_uiState.value.mediaTab == tab) return
+        _uiState.update { it.copy(
+            mediaTab = tab,
+            selectedMediaItems = emptyList(),
+            galleryItems = emptyList(),
+            galleryHasMore = true
+        ) }
+        galleryOffset = 0
+        when (tab) {
+            MediaTab.Audio -> {
+                loadGalleryPage(reset = true) // Images for cover
+                loadAudioFiles()
+            }
+            MediaTab.ThreeD -> loadGalleryPage(reset = true) // Images for cover
+            else -> loadGalleryPage(reset = true)
+        }
+    }
+
+    fun loadAudioFiles() {
+        if (_uiState.value.isLoadingAudioFiles) return
+        _uiState.update { it.copy(isLoadingAudioFiles = true) }
+        viewModelScope.launch {
+            val files = withContext(Dispatchers.IO) {
+                deviceMediaRepository.queryAudioFiles()
+            }
+            _uiState.update { it.copy(
+                deviceAudioFiles = files,
+                isLoadingAudioFiles = false
+            ) }
+        }
+    }
+
+    fun selectAudioFile(audioItem: DeviceAudioItem) {
+        val item = UploadedMediaItem(
+            localUri = audioItem.uri,
+            mediaType = "audio",
+            mimeType = audioItem.mimeType,
+            fileName = audioItem.displayName,
+            fileSize = audioItem.fileSize,
+            sortOrder = 0
+        )
+        _uiState.update { it.copy(audioFile = item) }
+    }
+
+    fun toggleMediaSelection(item: DeviceMediaItem) {
+        _uiState.update { state ->
+            when (state.mediaTab) {
+                MediaTab.Image -> {
+                    // Always multi-select for images
+                    val current = state.selectedMediaItems.toMutableList()
+                    val existing = current.indexOfFirst { it.id == item.id }
+                    if (existing >= 0) {
+                        current.removeAt(existing)
+                    } else if (current.size < MAX_ITEMS) {
+                        current.add(item)
+                    }
+                    state.copy(selectedMediaItems = current)
+                }
+                MediaTab.Video, MediaTab.Audio, MediaTab.ThreeD -> {
+                    // Single-select for video, audio cover, or 3D cover
+                    state.copy(selectedMediaItems = listOf(item))
+                }
+            }
+        }
+    }
+
+    // === Audio/3D file picking ===
+
+    fun addAudioFile(uri: Uri, fileName: String = "") {
+        val item = UploadedMediaItem(
+            localUri = uri,
+            mediaType = "audio",
+            fileName = fileName,
+            sortOrder = 0
+        )
+        _uiState.update { it.copy(audioFile = item) }
+    }
+
+    fun removeAudioFile() {
+        _uiState.update { it.copy(audioFile = null) }
+    }
+
+    fun addThreeDFile(uri: Uri, fileName: String = "") {
+        val item = UploadedMediaItem(
+            localUri = uri,
+            mediaType = "3d",
+            fileName = fileName,
+            sortOrder = 0
+        )
+        _uiState.update { it.copy(threeDFile = item) }
+    }
+
+    fun removeThreeDFile() {
+        _uiState.update { it.copy(threeDFile = null) }
+    }
+
+    /**
+     * Convert gallery selections to UploadedMediaItems and start uploads.
+     * Called when user taps "Next" from media selection.
+     * Behavior varies by media tab.
+     */
+    fun onNextFromMediaSelect() {
+        val state = _uiState.value
+        when (state.mediaTab) {
+            MediaTab.Image -> {
+                val selected = state.selectedMediaItems
+                if (selected.isEmpty()) return
+                val items = selected.mapIndexed { index, mediaItem ->
+                    UploadedMediaItem(
+                        localUri = mediaItem.uri,
+                        mediaType = "image",
+                        mimeType = mediaItem.mimeType,
+                        sortOrder = index
+                    )
+                }
+                _uiState.update { it.copy(mediaItems = items) }
+                items.forEach { item ->
+                    item.localUri?.let { uri -> uploadMediaItem(uri, item.id) }
+                }
+            }
+            MediaTab.Video -> {
+                val selected = state.selectedMediaItems.firstOrNull() ?: return
+                val item = UploadedMediaItem(
+                    localUri = selected.uri,
+                    mediaType = "video",
+                    mimeType = selected.mimeType,
+                    sortOrder = 0
+                )
+                _uiState.update { it.copy(mediaItems = listOf(item)) }
+                item.localUri?.let { uploadMediaItem(it, item.id) }
+            }
+            MediaTab.Audio -> {
+                val audio = state.audioFile ?: return
+                val audioItem = audio.copy(sortOrder = 0)
+                _uiState.update { it.copy(mediaItems = listOf(audioItem)) }
+                audio.localUri?.let { uploadMediaItem(it, audioItem.id) }
+                uploadCoverFromSelection(state)
+            }
+            MediaTab.ThreeD -> {
+                val file = state.threeDFile ?: return
+                val item = file.copy(sortOrder = 0)
+                _uiState.update { it.copy(mediaItems = listOf(item)) }
+                file.localUri?.let { uploadMediaItem(it, item.id, file.fileName) }
+                uploadCoverFromSelection(state)
+            }
+        }
+    }
+
+    /** Upload cover image from the first selected gallery item (used by Audio and 3D tabs). */
+    private fun uploadCoverFromSelection(state: CreatePostUiState) {
+        val coverSelection = state.selectedMediaItems.firstOrNull() ?: return
+        val cover = UploadedMediaItem(
+            localUri = coverSelection.uri,
+            mediaType = "image",
+            mimeType = coverSelection.mimeType,
+            sortOrder = 0
+        )
+        _uiState.update { it.copy(coverMedia = cover) }
+        uploadCover(coverSelection.uri)
+    }
 
     // === Post Type ===
 
@@ -248,11 +491,68 @@ class CreatePostViewModel @Inject constructor(
         _uiState.update { it.copy(coverMedia = null) }
     }
 
-    private fun uploadMediaItem(uri: Uri, itemId: String) {
+    // === Attachments (downloadable files for collectible/edition) ===
+
+    fun addAttachment(uri: Uri) {
+        val item = UploadedMediaItem(
+            localUri = uri,
+            sortOrder = _uiState.value.attachments.size
+        )
+        _uiState.update { it.copy(attachments = it.attachments + item) }
+        uploadAttachment(uri, item.id)
+    }
+
+    fun removeAttachment(itemId: String) {
+        _uiState.update { state ->
+            val filtered = state.attachments.filter { it.id != itemId }
+                .mapIndexed { index, item -> item.copy(sortOrder = index) }
+            state.copy(attachments = filtered)
+        }
+    }
+
+    private fun uploadAttachment(uri: Uri, itemId: String) {
+        viewModelScope.launch {
+            updateAttachmentState(itemId, UploadState.Uploading(0f))
+
+            val result = uploadService.uploadFile(uri)
+            result.onSuccess { uploaded ->
+                _uiState.update { state ->
+                    state.copy(
+                        attachments = state.attachments.map { item ->
+                            if (item.id == itemId) {
+                                item.copy(
+                                    url = uploaded.url,
+                                    mimeType = uploaded.mimeType,
+                                    fileSize = uploaded.fileSize,
+                                    fileName = uploaded.fileName,
+                                    mediaType = uploaded.mediaType,
+                                    uploadState = UploadState.Success(uploaded.url, uploaded.mimeType, uploaded.fileSize)
+                                )
+                            } else item
+                        }
+                    )
+                }
+                if (_uiState.value.storageType == "arweave") {
+                    checkArweaveFunding()
+                }
+            }
+            result.onFailure { error ->
+                updateAttachmentState(itemId, UploadState.Failed(error.message ?: "Upload failed"))
+            }
+        }
+    }
+
+    private fun updateAttachmentState(itemId: String, state: UploadState) {
+        _uiState.update { s ->
+            s.copy(attachments = s.attachments.map { if (it.id == itemId) it.copy(uploadState = state) else it })
+        }
+    }
+
+    private fun uploadMediaItem(uri: Uri, itemId: String, fileName: String? = null) {
         viewModelScope.launch {
             updateMediaItemState(itemId, UploadState.Uploading(0f))
 
-            val result = uploadService.uploadFile(uri)
+            val result = uploadService.uploadFile(uri, fileName)
             result.onSuccess { uploaded ->
                 _uiState.update { state ->
                     state.copy(
@@ -565,11 +865,34 @@ class CreatePostViewModel @Inject constructor(
 
     // === Validation ===
 
+    fun isStorageValid(): Boolean {
+        val state = _uiState.value
+        if (state.storageType != "arweave") return true
+        val funding = state.arweaveFundingState
+        if (funding !is ArweaveFundingState.Loaded) return false
+        return funding.hasSufficientSharedCredits && funding.hasActiveApproval
+    }
+
+    fun isMintWindowValid(): Boolean {
+        val state = _uiState.value
+        if (!state.mintWindowEnabled) return true
+        if (state.mintWindowDurationHours == null) return false
+        if (state.mintWindowStartMode == "scheduled" && state.mintWindowStartTime == null) return false
+        return true
+    }
+
     fun isValid(): Boolean {
         val state = _uiState.value
         // Must have at least one uploaded media item
         if (state.mediaItems.isEmpty()) return false
         if (!state.mediaItems.all { it.url != null }) return false
+        // All attachments must be fully uploaded
+        if (state.attachments.any { it.url == null }) return false
+
+        // Collectible validation
+        if (state.postType == "collectible") {
+            if (state.nftName.isBlank()) return false
+        }
 
         // Edition validation
         if (state.postType == "edition") {
@@ -577,6 +900,12 @@ class CreatePostViewModel @Inject constructor(
             val minPrice = if (state.currency == "SOL") MIN_PRICE_SOL else MIN_PRICE_USDC
             if (price < minPrice) return false
             if (state.nftName.isBlank()) return false
+
+            // Timed edition: if enabled, must have a duration set
+            if (state.mintWindowEnabled) {
+                if (state.mintWindowDurationHours == null) return false
+                if (state.mintWindowStartMode == "scheduled" && state.mintWindowStartTime == null) return false
+            }
 
             // Arweave validation: must have sufficient shared credits + active approval
             if (state.storageType == "arweave") {
@@ -608,7 +937,7 @@ class CreatePostViewModel @Inject constructor(
             try {
                 val firstItem = state.mediaItems.first()
                 val mediaUrl = firstItem.url!!
-                val assets = state.mediaItems.map { item ->
+                val mediaAssets = state.mediaItems.map { item ->
                     CreateAssetRequest(
                         url = item.url!!,
                         mediaType = item.mediaType,
@@ -618,6 +947,17 @@ class CreatePostViewModel @Inject constructor(
                         sortOrder = item.sortOrder
                     )
                 }
+                val attachmentAssets = state.attachments.mapIndexed { index, item ->
+                    CreateAssetRequest(
+                        url = item.url!!,
+                        mediaType = item.mediaType,
+                        fileName = item.fileName,
+                        mimeType = item.mimeType,
+                        fileSize = item.fileSize,
+                        sortOrder = state.mediaItems.size + index
+                    )
+                }
+                val assets = mediaAssets + attachmentAssets
 
                 val priceBaseUnits = if (state.postType == "edition") {
                     convertPriceToBaseUnits(state.priceDisplay, state.currency)

@@ -1,40 +1,29 @@
 package app.desperse.ui.components.media
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -53,52 +42,44 @@ import coil.request.ImageRequest
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
-import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
 /**
- * Audio player component with cover image and controls overlay
+ * Audio player component — mirrors VideoPlayer UX.
  *
- * Features:
- * - Cover image fills container (or music icon placeholder)
- * - Audio controls bar at bottom (semi-transparent with blur)
- * - Play/pause button
- * - Progress bar with seek
- * - Time display (current / duration)
- * - Music indicator badge (top right)
+ * Feed mode (useFixedAspectRatio = true): cover image, auto-plays muted and loops.
+ * Mute/unmute button bottom-right (same as video). No top-right badge.
+ * Parent handles tap/double-tap gestures for navigation and like.
  *
- * @param audioUrl URL of the audio to play
- * @param coverUrl Optional cover image
- * @param maxAspectRatio Maximum height/width ratio for display
- * @param onClick Click handler for opening detail view
- * @param modifier Modifier for the container
+ * Detail mode (useFixedAspectRatio = false): cover image, auto-plays muted.
+ * Tap anywhere toggles mute with centered indicator flash (same as video).
+ * No scrubber/timeline.
  */
 @Composable
 fun AudioPlayer(
     audioUrl: String,
     coverUrl: String? = null,
-    maxAspectRatio: Float = 1.25f,
-    onClick: () -> Unit = {},
+    useFixedAspectRatio: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var isPlaying by remember { mutableStateOf(false) }
-    var currentPosition by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(0L) }
-    var isSeeking by remember { mutableStateOf(false) }
-    var seekPosition by remember { mutableFloatStateOf(0f) }
+    var isMuted by remember { mutableStateOf(true) }
+    var showMuteIndicator by remember { mutableStateOf(false) }
+    var muteIndicatorKey by remember { mutableStateOf(0) }
 
-    // Use 1:1 aspect ratio for audio (like album art)
+    // 1:1 aspect ratio for audio (like album art)
     val displayAspectRatio = 1f
 
-    // Create ExoPlayer instance
+    // Create ExoPlayer — same setup as original, just muted + looping
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(audioUrl))
+            repeatMode = Player.REPEAT_MODE_ALL
+            volume = 0f // Start muted
             prepare()
         }
     }
@@ -121,12 +102,13 @@ fun AudioPlayer(
         }
     }
 
-    // Listen for playback state changes
+    // Auto-play when ready
     LaunchedEffect(exoPlayer) {
         exoPlayer.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_READY) {
-                    duration = exoPlayer.duration
+                if (playbackState == Player.STATE_READY && !isPlaying) {
+                    exoPlayer.play()
+                    isPlaying = true
                 }
             }
 
@@ -136,13 +118,16 @@ fun AudioPlayer(
         })
     }
 
-    // Update position while playing
-    LaunchedEffect(isPlaying) {
-        while (isActive && isPlaying) {
-            if (!isSeeking) {
-                currentPosition = exoPlayer.currentPosition
-            }
-            delay(100)
+    // Update mute state — re-apply whenever isMuted changes
+    LaunchedEffect(isMuted, exoPlayer) {
+        exoPlayer.volume = if (isMuted) 0f else 1f
+    }
+
+    // Auto-hide mute indicator after brief flash
+    LaunchedEffect(muteIndicatorKey) {
+        if (showMuteIndicator) {
+            delay(800)
+            showMuteIndicator = false
         }
     }
 
@@ -150,12 +135,7 @@ fun AudioPlayer(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(displayAspectRatio)
-            .clip(RoundedCornerShape(0.dp))
-            .background(Color.Black)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onClick() },
+            .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
         // Cover image or placeholder
@@ -195,128 +175,67 @@ fun AudioPlayer(
             }
         }
 
-        // Music indicator badge (top right)
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(DesperseSpacing.sm)
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.5f)),
-            contentAlignment = Alignment.Center
-        ) {
-            FaIcon(
-                icon = FaIcons.Music,
-                size = 12.dp,
-                tint = Color.White,
-                style = FaIconStyle.Solid,
-                contentDescription = null
-            )
-        }
-
-        // Audio controls bar (bottom)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.7f)
-                        )
-                    )
-                )
-                .padding(DesperseSpacing.sm)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
+        if (useFixedAspectRatio) {
+            // Feed mode: mute/unmute button bottom-right (same as video)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(DesperseSpacing.sm)
             ) {
-                // Play/Pause button
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f))
-                        .clickable {
-                            if (isPlaying) {
-                                exoPlayer.pause()
-                            } else {
-                                exoPlayer.play()
-                            }
-                        },
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { isMuted = !isMuted },
                     contentAlignment = Alignment.Center
                 ) {
                     FaIcon(
-                        icon = if (isPlaying) FaIcons.Pause else FaIcons.Play,
+                        icon = if (isMuted) FaIcons.VolumeMute else FaIcons.VolumeUp,
                         size = 16.dp,
                         tint = Color.White,
                         style = FaIconStyle.Solid,
-                        contentDescription = if (isPlaying) "Pause" else "Play"
+                        contentDescription = if (isMuted) "Unmute" else "Mute"
                     )
                 }
-
-                // Progress section
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Progress slider
-                    val progress = if (duration > 0) {
-                        if (isSeeking) seekPosition else (currentPosition.toFloat() / duration.toFloat())
-                    } else 0f
-
-                    Slider(
-                        value = progress,
-                        onValueChange = { value ->
-                            isSeeking = true
-                            seekPosition = value
-                        },
-                        onValueChangeFinished = {
-                            exoPlayer.seekTo((seekPosition * duration).toLong())
-                            currentPosition = (seekPosition * duration).toLong()
-                            isSeeking = false
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(24.dp),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.White,
-                            activeTrackColor = Color.White,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                    )
-
-                    // Time display
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+            }
+        } else {
+            // Detail mode: tap anywhere to toggle mute, centered indicator flashes
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
                     ) {
-                        Text(
-                            text = formatDuration(if (isSeeking) (seekPosition * duration).toLong() else currentPosition),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                        Text(
-                            text = formatDuration(duration),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
+                        isMuted = !isMuted
+                        showMuteIndicator = true
+                        muteIndicatorKey++
                     }
+            )
+
+            AnimatedVisibility(
+                visible = showMuteIndicator,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    FaIcon(
+                        icon = if (isMuted) FaIcons.VolumeMute else FaIcons.VolumeUp,
+                        size = 24.dp,
+                        tint = Color.White,
+                        style = FaIconStyle.Solid,
+                        contentDescription = if (isMuted) "Muted" else "Unmuted"
+                    )
                 }
             }
         }
     }
-}
-
-/**
- * Format duration in milliseconds to MM:SS format
- */
-private fun formatDuration(durationMs: Long): String {
-    if (durationMs <= 0) return "0:00"
-    val totalSeconds = durationMs / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "$minutes:${seconds.toString().padStart(2, '0')}"
 }

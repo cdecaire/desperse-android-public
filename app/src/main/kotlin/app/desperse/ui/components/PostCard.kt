@@ -1,7 +1,16 @@
 package app.desperse.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,14 +24,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -93,11 +107,12 @@ fun PostCard(
             hasDownloadAccess = post.isCollected || isOwnPost
         )
 
-        // Full-width media
+        // Full-width media (double-tap to like)
         PostCardMedia(
             post = post,
             mintPhase = mintPhase,
-            onClick = onClick
+            onClick = onClick,
+            onDoubleTapLike = onLikeClick
         )
 
         // Actions row
@@ -327,13 +342,87 @@ private fun PostCardHeader(
 private fun PostCardMedia(
     post: Post,
     mintPhase: MintWindowPhase,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDoubleTapLike: () -> Unit = {}
 ) {
-    Box(modifier = Modifier.fillMaxWidth()) {
+    var showHeartAnimation by remember { mutableStateOf(false) }
+    val heartScale = remember { Animatable(0f) }
+    val heartAlpha = remember { Animatable(0f) }
+    // Particle burst: progress drives position (0→1 = center→outward) and fade
+    val particleProgress = remember { Animatable(0f) }
+    val likeColor = toneLike()
+
+    // Stable particle angles (radial burst, evenly distributed with slight randomness)
+    val particleAngles = remember {
+        val base = List(8) { i -> (i * 45.0) + (i * 7.0 - 24.0) } // 8 particles, ~45° apart, slight offset
+        base.map { Math.toRadians(it) }
+    }
+
+    LaunchedEffect(showHeartAnimation) {
+        if (showHeartAnimation) {
+            // Reset all
+            heartAlpha.snapTo(1f)
+            heartScale.snapTo(0f)
+            particleProgress.snapTo(0f)
+
+            // Phase 1: Heart pops in with elastic overshoot
+            heartScale.animateTo(
+                1f,
+                animationSpec = spring(
+                    dampingRatio = 0.4f,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+
+            // Phase 2: Particle burst + heart fade out in parallel
+            coroutineScope {
+                // Particles fly outward and fade
+                launch {
+                    particleProgress.animateTo(
+                        1f,
+                        animationSpec = tween(
+                            durationMillis = 500,
+                            easing = androidx.compose.animation.core.EaseOutCubic
+                        )
+                    )
+                }
+                // Heart shrinks + fades after brief hold
+                launch {
+                    delay(80)
+                    coroutineScope {
+                        launch {
+                            heartScale.animateTo(0.7f, animationSpec = tween(260))
+                        }
+                        launch {
+                            heartAlpha.animateTo(0f, animationSpec = tween(260))
+                        }
+                    }
+                }
+            }
+
+            heartScale.snapTo(0f)
+            particleProgress.snapTo(0f)
+            showHeartAnimation = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onDoubleTap = {
+                        if (!post.isLiked) onDoubleTapLike()
+                        showHeartAnimation = true
+                    }
+                )
+            }
+    ) {
         PostMedia(
             post = post,
             maxAspectRatio = 1.25f, // 4:5 max in feed
-            onClick = onClick
+            onClick = null // handled by parent gesture detector
         )
 
         // Price pill overlay for editions (top-right position like web)
@@ -346,6 +435,53 @@ private fun PostCardMedia(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(end = DesperseSpacing.lg, top = DesperseSpacing.sm)
+            )
+        }
+
+        // Double-tap heart animation overlay
+        if (showHeartAnimation || heartAlpha.value > 0f || particleProgress.value > 0f) {
+            // Particle burst — small circles radiating outward from center
+            val pProgress = particleProgress.value
+            if (pProgress > 0f) {
+                val particleColor = likeColor
+                Canvas(
+                    modifier = Modifier
+                        .matchParentSize()
+                ) {
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val maxRadius = size.minDimension * 0.35f
+                    // Particles fade out in second half of progress
+                    val particleAlpha = if (pProgress < 0.5f) 1f else 1f - ((pProgress - 0.5f) / 0.5f)
+                    val particleSize = 4.dp.toPx() * (1f - pProgress * 0.6f) // Shrink as they fly
+
+                    particleAngles.forEachIndexed { i, angle ->
+                        val dist = maxRadius * pProgress
+                        val px = cx + (dist * kotlin.math.cos(angle)).toFloat()
+                        val py = cy + (dist * kotlin.math.sin(angle)).toFloat()
+                        // Alternate between larger and smaller particles
+                        val sizeMult = if (i % 2 == 0) 1f else 0.6f
+                        drawCircle(
+                            color = if (i % 3 == 0) Color.White else particleColor,
+                            radius = particleSize * sizeMult,
+                            center = Offset(px, py),
+                            alpha = particleAlpha
+                        )
+                    }
+                }
+            }
+
+            // Main heart
+            FaIcon(
+                icon = FaIcons.Heart,
+                size = 80.dp,
+                tint = likeColor,
+                style = FaIconStyle.Solid,
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .scale(heartScale.value)
+                    .alpha(heartAlpha.value)
             )
         }
     }

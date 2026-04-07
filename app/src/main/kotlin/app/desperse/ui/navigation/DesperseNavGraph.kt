@@ -46,6 +46,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
+import app.desperse.ui.screens.create.CreatePostViewModel
+import app.desperse.ui.screens.create.MediaSelectionScreen
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.desperse.core.auth.AuthState
@@ -72,6 +75,7 @@ import app.desperse.ui.components.UnreadDot
 import app.desperse.data.NotificationCountManager
 import app.desperse.data.UnreadMessageManager
 import app.desperse.ui.screens.auth.LoginScreen
+import app.desperse.ui.screens.create.CaptionScreen
 import app.desperse.ui.screens.create.CreateScreen
 import app.desperse.ui.screens.explore.ExploreScreen
 import app.desperse.ui.screens.feed.FeedScreen
@@ -377,7 +381,7 @@ sealed class Screen(
 ) {
     object Feed : Screen("feed", "Home", FaIcons.Home)
     object Explore : Screen("explore", "Explore", FaIcons.Search)
-    object Create : Screen("create", "Create", FaIcons.Plus)
+    object Create : Screen("create_flow", "Create", FaIcons.Plus)
     object Notifications : Screen("notifications", "Notifications", FaIcons.Bell)
     object Messages : Screen("messages", "Messages", FaIcons.Message)
     object Profile : Screen("profile", "Profile", FaIcons.User)
@@ -606,7 +610,7 @@ fun DesperseNavGraph(
                     onPostClick = { postId -> navController.navigate("post/$postId") },
                     onUserClick = { slug -> navController.navigate("profile/$slug") },
                     onCreateClick = { navController.navigate(Screen.Create.route) },
-                    onEditPost = { postId -> navController.navigate("post/$postId/edit") },
+                    onEditPost = { postId -> navController.navigate("edit_flow/$postId") },
                     scrollBehavior = scrollBehavior
                 )
             }
@@ -616,25 +620,101 @@ fun DesperseNavGraph(
                     onUserClick = { slug -> navController.navigate("profile/$slug") }
                 )
             }
-            composable(Screen.Create.route) {
-                CreateScreen(
-                    onPostCreated = { postId ->
-                        navController.navigate("post/$postId") {
-                            popUpTo(Screen.Create.route) { inclusive = true }
-                        }
-                    },
-                    onClose = { navController.popBackStack() },
-                    onManageStorageCredits = { navController.navigate("settings/storage-credits") }
-                )
+            navigation(
+                route = Screen.Create.route,
+                startDestination = "create/media-select"
+            ) {
+                composable("create/media-select") { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry(Screen.Create.route)
+                    }
+                    val viewModel: CreatePostViewModel = androidx.hilt.navigation.compose.hiltViewModel(parentEntry)
+
+                    MediaSelectionScreen(
+                        viewModel = viewModel,
+                        onClose = {
+                            navController.popBackStack(Screen.Create.route, inclusive = true)
+                        },
+                        onNext = { navController.navigate("create/caption") }
+                    )
+                }
+
+                composable("create/caption") { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry(Screen.Create.route)
+                    }
+                    val viewModel: CreatePostViewModel = androidx.hilt.navigation.compose.hiltViewModel(parentEntry)
+
+                    CaptionScreen(
+                        viewModel = viewModel,
+                        onNext = { navController.navigate("create/details") },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                composable("create/details") { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry(Screen.Create.route)
+                    }
+                    val viewModel: CreatePostViewModel = androidx.hilt.navigation.compose.hiltViewModel(parentEntry)
+
+                    CreateScreen(
+                        viewModel = viewModel,
+                        onPostCreated = { postId ->
+                            navController.navigate("post/$postId") {
+                                popUpTo(Screen.Create.route) { inclusive = true }
+                            }
+                        },
+                        onClose = {
+                            navController.popBackStack(Screen.Create.route, inclusive = true)
+                        },
+                        onBack = { navController.popBackStack() },
+                        onManageStorageCredits = { navController.navigate("settings/storage-credits") }
+                    )
+                }
             }
-            composable("post/{postId}/edit") { backStackEntry ->
-                val postId = backStackEntry.arguments?.getString("postId") ?: return@composable
-                CreateScreen(
-                    editPostId = postId,
-                    onPostCreated = { navController.popBackStack() },
-                    onClose = { navController.popBackStack() },
-                    onManageStorageCredits = { navController.navigate("settings/storage-credits") }
-                )
+            // Edit mode: 2-step flow (caption → details)
+            navigation(
+                route = "edit_flow/{postId}",
+                startDestination = "edit/caption",
+                arguments = listOf(navArgument("postId") { type = NavType.StringType })
+            ) {
+                composable("edit/caption") { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry("edit_flow/{postId}")
+                    }
+                    val postId = parentEntry.arguments?.getString("postId") ?: return@composable
+                    val viewModel: CreatePostViewModel = androidx.hilt.navigation.compose.hiltViewModel(parentEntry)
+
+                    LaunchedEffect(postId) {
+                        viewModel.loadPostForEdit(postId)
+                    }
+
+                    CaptionScreen(
+                        viewModel = viewModel,
+                        onNext = { navController.navigate("edit/details") },
+                        onBack = { navController.popBackStack("edit_flow/{postId}", inclusive = true) }
+                    )
+                }
+
+                composable("edit/details") { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry("edit_flow/{postId}")
+                    }
+                    val viewModel: CreatePostViewModel = androidx.hilt.navigation.compose.hiltViewModel(parentEntry)
+
+                    CreateScreen(
+                        viewModel = viewModel,
+                        onPostCreated = {
+                            navController.popBackStack("edit_flow/{postId}", inclusive = true)
+                        },
+                        onClose = {
+                            navController.popBackStack("edit_flow/{postId}", inclusive = true)
+                        },
+                        onBack = { navController.popBackStack() },
+                        onManageStorageCredits = { navController.navigate("settings/storage-credits") }
+                    )
+                }
             }
             composable(Screen.Notifications.route) {
                 NotificationsScreen(

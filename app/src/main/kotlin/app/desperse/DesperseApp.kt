@@ -5,6 +5,7 @@ import app.desperse.core.preferences.AppPreferences
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.ImageDecoderDecoder
+import coil.decode.VideoFrameDecoder
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
@@ -14,6 +15,7 @@ class DesperseApp : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .components {
                 add(ImageDecoderDecoder.Factory())
+                add(VideoFrameDecoder.Factory())
             }
             .crossfade(true)
             .build()

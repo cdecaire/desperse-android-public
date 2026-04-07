@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,18 +23,24 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -50,6 +57,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -87,6 +96,7 @@ fun ExploreScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val collectStates by viewModel.collectStates.collectAsState()
+    val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val pullRefreshState = rememberPullToRefreshState()
@@ -101,33 +111,30 @@ fun ExploreScreen(
     var reportContentType by remember { mutableStateOf("post") }
     val commentSheetViewModel: CommentSheetViewModel = hiltViewModel()
 
-    // Load more when scrolling near the end
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo }
+    // Load more when scrolling near the end (grid)
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.layoutInfo }
             .collect { layoutInfo ->
                 val totalItems = layoutInfo.totalItemsCount
                 val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                if (lastVisibleItem >= totalItems - 4 && !uiState.isLoadingMore && uiState.hasMore && !uiState.showSearchResults) {
+                if (lastVisibleItem >= totalItems - 6 && !uiState.isLoadingMore && uiState.hasMore && !uiState.showSearchResults) {
                     viewModel.loadMore()
                 }
             }
     }
 
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Explore",
-                        modifier = Modifier.clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) { scope.launch { listState.animateScrollToItem(0) } }
-                    )
-                },
+                title = { Text("Explore") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background
+                ),
+                scrollBehavior = scrollBehavior
             )
         }
     ) { padding ->
@@ -218,9 +225,33 @@ fun ExploreScreen(
 
                 uiState.isLoading -> {
                     val brush = rememberShimmerBrush()
-                    Column(modifier = Modifier.fillMaxSize()) {
+                    // Grid skeleton — 3 columns of placeholder tiles
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = DesperseSpacing.sm),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
                         repeat(3) {
-                            PostCardSkeleton(brush = brush)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(0.8f)
+                                    .background(brush, RoundedCornerShape(2.dp))
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        repeat(3) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(0.8f)
+                                    .background(brush, RoundedCornerShape(2.dp))
+                            )
                         }
                     }
                 }
@@ -233,21 +264,24 @@ fun ExploreScreen(
                 }
 
                 else -> {
-                    // Explore Content
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize()
+                    // Explore Content — 3-column grid
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        // Suggested Creators Section
+                        // Suggested Creators Section (full width)
                         if (uiState.suggestedCreators.isNotEmpty()) {
-                            item {
+                            item(span = { GridItemSpan(3) }) {
                                 SuggestedCreatorsSection(
                                     creators = uiState.suggestedCreators,
                                     onCreatorClick = onUserClick
                                 )
                             }
 
-                            item {
+                            item(span = { GridItemSpan(3) }) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(vertical = DesperseSpacing.md),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -255,73 +289,25 @@ fun ExploreScreen(
                             }
                         }
 
-                        // Trending Section Header
-                        item {
-                            Text(
-                                text = uiState.sectionTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(
-                                    horizontal = DesperseSpacing.lg,
-                                    vertical = DesperseSpacing.sm
-                                )
-                            )
-                        }
-
-                        // Trending Posts
+                        // Posts Grid
                         items(
                             items = uiState.trendingPosts,
                             key = { it.id },
-                            contentType = { "post" }
+                            contentType = { "grid_post" }
                         ) { post ->
-                            val onClickStable = remember(post.id) { { onPostClick(post.id) } }
-                            val onUserClickStable = remember(post.user.slug) { { onUserClick(post.user.slug) } }
-                            val onLikeClickStable = remember(post.id) { { viewModel.likePost(post.id) } }
-                            val onCollectClickStable = remember(post.id) { { viewModel.collectPost(post.id) } }
-                            val onCommentClickStable = remember(post.id, post.commentCount) {
-                                {
-                                    commentSheetViewModel.openForPost(post.id, post.commentCount)
-                                    showCommentSheet = true
-                                }
-                            }
-                            val onReportStable = remember(post.id) {
-                                {
-                                    reportContentType = "post"
-                                    reportPostId = post.id
-                                    reportContentPreview = ReportContentPreview(
-                                        userName = post.user.displayName ?: post.user.slug,
-                                        userAvatarUrl = post.user.avatarUrl,
-                                        contentText = post.caption,
-                                        mediaUrl = post.coverUrl ?: post.mediaUrl
-                                    )
-                                    showReportSheet = true
-                                }
-                            }
-
-                            val collectState by remember(post.id) {
-                                derivedStateOf { collectStates[post.id] ?: CollectState.Idle }
-                            }
-
-                            PostCard(
+                            ExploreGridItem(
                                 post = post,
-                                onClick = onClickStable,
-                                onUserClick = onUserClickStable,
-                                onMentionClick = onUserClick,
-                                onLikeClick = onLikeClickStable,
-                                onCommentClick = onCommentClickStable,
-                                onCollectClick = onCollectClickStable,
-                                onReport = onReportStable,
-                                collectState = collectState
+                                onClick = { onPostClick(post.id) }
                             )
                         }
 
                         if (uiState.isLoadingMore) {
-                            item { LoadingMoreIndicator() }
+                            item(span = { GridItemSpan(3) }) { LoadingMoreIndicator() }
                         }
 
                         // Empty state
                         if (uiState.trendingPosts.isEmpty() && !uiState.isLoading) {
-                            item {
+                            item(span = { GridItemSpan(3) }) {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -698,6 +684,89 @@ private fun SearchUserItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+@Composable
+private fun ExploreGridItem(
+    post: Post,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+
+    val isVideo = post.mediaUrl?.let { url ->
+        val extension = url.substringAfterLast('.').substringBefore('?').lowercase()
+        extension in listOf("mp4", "webm", "mov")
+    } ?: false
+
+    val imageUrl = post.coverUrl ?: post.mediaUrl
+
+    val thumbnailUrl = remember(imageUrl, isVideo) {
+        if (imageUrl == null) null
+        else if (isVideo && post.coverUrl == null) imageUrl
+        else ImageOptimization.getOptimizedUrlForContext(imageUrl, ImageContext.PROFILE_GRID)
+    }
+
+    Box(
+        modifier = Modifier
+            .aspectRatio(0.8f) // 4:5 to match feed
+            .clip(RoundedCornerShape(2.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() }
+    ) {
+        if (thumbnailUrl != null) {
+            AsyncImage(
+                model = remember(thumbnailUrl) {
+                    ImageRequest.Builder(context)
+                        .data(thumbnailUrl)
+                        .crossfade(true)
+                        .build()
+                },
+                contentDescription = post.caption,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                filterQuality = FilterQuality.Low
+            )
+        }
+
+        // Video badge (top right)
+        if (isVideo) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                FaIcon(
+                    icon = FaIcons.Play,
+                    size = 8.dp,
+                    tint = Color.White,
+                    style = FaIconStyle.Solid
+                )
+            }
+        }
+        // Collectible/Edition badge
+        else if (post.type == "collectible" || post.type == "edition") {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                FaIcon(
+                    icon = if (post.type == "collectible") FaIcons.Gem else FaIcons.LayerGroup,
+                    size = 10.dp,
+                    tint = Color.White,
+                    style = FaIconStyle.Solid
+                )
+            }
         }
     }
 }

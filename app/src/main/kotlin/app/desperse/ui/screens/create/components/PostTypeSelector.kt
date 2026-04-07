@@ -5,15 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
@@ -33,11 +29,14 @@ import app.desperse.ui.theme.toneStandard
 data class PostTypeOption(
     val type: String,
     val title: String,
-    val description: String,
     val icon: String,
     val toneColor: Color
 )
 
+/**
+ * Post type selector displayed as 3 equal columns.
+ * Standard is pre-selected. Tapping switches selection.
+ */
 @Composable
 fun PostTypeSelector(
     selectedType: String,
@@ -49,9 +48,9 @@ fun PostTypeSelector(
     val editionColor = toneEdition()
 
     val postTypeOptions = listOf(
-        PostTypeOption("post", "Standard", "Share without minting", FaIcons.CirclePlus, standardColor),
-        PostTypeOption("collectible", "Collectible", "Free to collect as NFT", FaIcons.Gem, collectibleColor),
-        PostTypeOption("edition", "Edition", "Sell as NFT editions", FaIcons.LayerGroup, editionColor)
+        PostTypeOption("post", "Standard", FaIcons.CirclePlus, standardColor),
+        PostTypeOption("collectible", "Collectible", FaIcons.Gem, collectibleColor),
+        PostTypeOption("edition", "Edition", FaIcons.LayerGroup, editionColor)
     )
 
     Column(
@@ -64,57 +63,46 @@ fun PostTypeSelector(
             color = MaterialTheme.colorScheme.onSurface
         )
 
-        postTypeOptions.forEach { option ->
-            val isSelected = option.type == selectedType
-            val shape = RoundedCornerShape(DesperseRadius.xl)
-            val borderColor = if (isSelected) option.toneColor else MaterialTheme.colorScheme.outline
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
+        ) {
+            postTypeOptions.forEach { option ->
+                val isSelected = option.type == selectedType
+                val shape = RoundedCornerShape(DesperseRadius.md)
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .border(
-                        width = if (isSelected) 1.5.dp else 1.dp,
-                        color = borderColor,
-                        shape = shape
-                    )
-                    .clickable { onTypeSelected(option.type) },
-                color = if (isSelected) option.toneColor.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
-            ) {
-                Row(
-                    modifier = Modifier.padding(DesperseSpacing.md),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(shape)
+                        .border(
+                            width = if (isSelected) 1.5.dp else 1.dp,
+                            color = if (isSelected) option.toneColor else MaterialTheme.colorScheme.outlineVariant,
+                            shape = shape
+                        )
+                        .clickable { onTypeSelected(option.type) },
+                    color = if (isSelected) option.toneColor.copy(alpha = 0.08f)
+                           else MaterialTheme.colorScheme.surface
                 ) {
-                    FaIcon(
-                        icon = option.icon,
-                        size = 20.dp,
-                        tint = if (isSelected) option.toneColor else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.width(DesperseSpacing.md))
-
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.padding(vertical = DesperseSpacing.md, horizontal = DesperseSpacing.sm),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.xs)
+                    ) {
+                        FaIcon(
+                            icon = option.icon,
+                            size = 18.dp,
+                            tint = if (isSelected) option.toneColor
+                                   else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Text(
                             option.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isSelected) option.toneColor else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            option.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (isSelected) option.toneColor
+                                   else MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center
                         )
                     }
-
-                    RadioButton(
-                        selected = isSelected,
-                        onClick = { onTypeSelected(option.type) },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = option.toneColor,
-                            unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
             }
         }

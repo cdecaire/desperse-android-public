@@ -47,7 +47,7 @@ fun BlurredBackgroundImage(
     maxAspectRatio: Float = 1.25f,
     fixedAspectRatio: Float? = null,
     contentDescription: String? = null,
-    onClick: () -> Unit = {},
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -82,7 +82,7 @@ fun BlurredBackgroundImage(
             .aspectRatio(effectiveRatio)
             .clipToBounds()
             .background(Color.Black)
-            .clickable(onClick = onClick),
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
         contentAlignment = Alignment.Center
     ) {
         // Feed: Crop to fill (edge-to-edge, crops excess)

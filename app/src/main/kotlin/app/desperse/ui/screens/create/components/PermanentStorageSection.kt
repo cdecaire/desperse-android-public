@@ -23,7 +23,6 @@ fun PermanentStorageSection(
     isLocked: Boolean,
     isEditMode: Boolean,
     onStorageTypeChange: (String) -> Unit,
-    onManageCreditsClick: () -> Unit,
     onRetryCheck: () -> Unit
 ) {
     val destructiveColor = toneDestructive()
@@ -87,10 +86,7 @@ fun PermanentStorageSection(
                 }
 
                 is ArweaveFundingState.Loaded -> {
-                    FundingDetails(
-                        state = fundingState,
-                        onManageCreditsClick = onManageCreditsClick
-                    )
+                    FundingDetails(state = fundingState)
                 }
 
                 is ArweaveFundingState.Error -> {
@@ -127,8 +123,7 @@ fun PermanentStorageSection(
 
 @Composable
 private fun FundingDetails(
-    state: ArweaveFundingState.Loaded,
-    onManageCreditsClick: () -> Unit
+    state: ArweaveFundingState.Loaded
 ) {
     val successColor = toneStandard()
     val destructiveColor = toneDestructive()
@@ -166,23 +161,28 @@ private fun FundingDetails(
             valueColor = authColor
         )
 
-        // Link to manage credits if insufficient or unauthorized
+        // Note if insufficient or unauthorized
         if (!state.hasSufficientSharedCredits || !state.hasActiveApproval) {
-            TextButton(
-                onClick = onManageCreditsClick,
-                modifier = Modifier.fillMaxWidth()
+            Surface(
+                color = infoColor.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text(
-                    text = "Manage Storage Credits",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = infoColor
-                )
-                Spacer(Modifier.width(4.dp))
-                FaIcon(
-                    FaIcons.ArrowRight,
-                    size = 12.dp,
-                    tint = infoColor
-                )
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FaIcon(
+                        FaIcons.CircleInfo,
+                        size = 14.dp,
+                        tint = infoColor
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Set up storage credits in Settings before enabling permanent storage.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = infoColor
+                    )
+                }
             }
         }
     }

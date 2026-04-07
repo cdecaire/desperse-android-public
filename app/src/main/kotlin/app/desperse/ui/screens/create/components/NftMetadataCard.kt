@@ -15,7 +15,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,16 +31,16 @@ import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneCollectible
 
+/**
+ * Collapsible "Optional Details" section with symbol and royalties fields.
+ */
 @Composable
 fun NftMetadataCard(
     nftSymbol: String,
     royalties: String,
-    isMutable: Boolean,
     nftFieldsEditable: Boolean,
-    mutabilityEditable: Boolean,
     onSymbolChange: (String) -> Unit,
     onRoyaltiesChange: (String) -> Unit,
-    onMutableChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -66,7 +65,7 @@ fun NftMetadataCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                "Additional details",
+                "Optional Details",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -96,78 +95,57 @@ fun NftMetadataCard(
                     verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
                 ) {
                     // Symbol
-                    Text(
-                        "Symbol",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    OutlinedTextField(
-                        value = nftSymbol,
-                        onValueChange = onSymbolChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("DSPRS") },
-                        singleLine = true,
-                        enabled = nftFieldsEditable,
-                        colors = textFieldColors,
-                        shape = RoundedCornerShape(DesperseRadius.sm),
-                        supportingText = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                Text(
-                                    "${nftSymbol.length} / 10",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    )
-
-                    // Royalties
-                    Text(
-                        "Royalties",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    OutlinedTextField(
-                        value = royalties,
-                        onValueChange = onRoyaltiesChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("0.00") },
-                        suffix = { Text("%") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        enabled = nftFieldsEditable,
-                        colors = textFieldColors,
-                        shape = RoundedCornerShape(DesperseRadius.sm),
-                        supportingText = {
+                    Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.xs)) {
+                        Text(
+                            "Symbol",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        OutlinedTextField(
+                            value = nftSymbol,
+                            onValueChange = onSymbolChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("DSPRS") },
+                            singleLine = true,
+                            enabled = nftFieldsEditable,
+                            colors = textFieldColors,
+                            shape = RoundedCornerShape(DesperseRadius.sm)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
                             Text(
-                                "0-10% creator royalties on resales",
+                                "${nftSymbol.length} / 10",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    )
+                    }
 
-                    // Mutable toggle
-                    Text(
-                        "Metadata Mutable",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    // Royalties
+                    Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.xs)) {
                         Text(
-                            if (isMutable) "Mutable" else "Immutable",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "Royalties",
+                            style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Switch(
-                            checked = isMutable,
-                            onCheckedChange = onMutableChange,
-                            enabled = mutabilityEditable
+                        OutlinedTextField(
+                            value = royalties,
+                            onValueChange = onRoyaltiesChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("0.00") },
+                            suffix = { Text("%") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            enabled = nftFieldsEditable,
+                            colors = textFieldColors,
+                            shape = RoundedCornerShape(DesperseRadius.sm)
+                        )
+                        Text(
+                            "0-10% creator royalties on resales",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

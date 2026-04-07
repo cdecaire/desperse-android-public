@@ -846,27 +846,29 @@ private fun ProfileGridItem(
         extension in listOf("mp4", "webm", "mov")
     } ?: false
 
-    // For videos: use coverUrl only (don't fallback to mediaUrl since AsyncImage can't render videos)
-    // For images: use mediaUrl
-    val imageUrl = if (isVideo) post.coverUrl else (post.coverUrl ?: post.mediaUrl)
-    val showVideoPlaceholder = isVideo && imageUrl == null
+    // For videos: prefer coverUrl, fall back to mediaUrl (Coil VideoFrameDecoder extracts a frame)
+    // For images: use coverUrl or mediaUrl
+    val imageUrl = post.coverUrl ?: post.mediaUrl
 
-    val optimizedImageUrl = remember(imageUrl) {
-        imageUrl?.let { ImageOptimization.getOptimizedUrlForContext(it, ImageContext.PROFILE_GRID) }
+    // Don't apply Vercel image optimization to video URLs — Coil needs the raw URL for frame extraction
+    val thumbnailUrl = remember(imageUrl, isVideo) {
+        if (imageUrl == null) null
+        else if (isVideo && post.coverUrl == null) imageUrl
+        else ImageOptimization.getOptimizedUrlForContext(imageUrl, ImageContext.PROFILE_GRID)
     }
 
     Box(
         modifier = Modifier
-            .aspectRatio(1f)
+            .aspectRatio(0.8f) // 4:5 to match feed media ratio
             .clip(RoundedCornerShape(2.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick() }
     ) {
-        if (optimizedImageUrl != null) {
+        if (thumbnailUrl != null) {
             AsyncImage(
-                model = remember(optimizedImageUrl) {
+                model = remember(thumbnailUrl) {
                     ImageRequest.Builder(context)
-                        .data(optimizedImageUrl)
+                        .data(thumbnailUrl)
                         .crossfade(true)
                         .build()
                 },
@@ -877,23 +879,8 @@ private fun ProfileGridItem(
             )
         }
 
-        // Video placeholder when no cover image is available
-        if (showVideoPlaceholder) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                FaIcon(
-                    icon = FaIcons.Play,
-                    size = 32.dp,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    style = FaIconStyle.Solid
-                )
-            }
-        }
-
-        // Video indicator badge (top right) - shows for videos WITH covers
-        if (isVideo && imageUrl != null) {
+        // Video indicator badge (top right)
+        if (isVideo) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)

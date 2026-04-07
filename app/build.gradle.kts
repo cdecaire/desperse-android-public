@@ -26,8 +26,8 @@ android {
         applicationId = "app.desperse.android"
         minSdk = 28  // Required by Privy SDK
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.0.8"
+        versionCode = 11
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -36,9 +36,9 @@ android {
         }
 
         ndk {
-            // Only include ABIs for real devices - exclude deprecated mips/mips64
-            // which can trigger Google Play Protect heuristics
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            // Real devices only — x86/x86_64 excluded to reduce APK size
+            // (Filament native libs add ~6MB per ABI)
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
 
         // Build config fields from local.properties
@@ -159,8 +159,12 @@ dependencies {
     // Media
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.coil.video)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
+    implementation(libs.filament.android)
+    implementation(libs.filament.utils)
+    implementation(libs.gltfio.android)
 
     // Solana Mobile (MWA)
     implementation(libs.mwa.client)

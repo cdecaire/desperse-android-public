@@ -1,6 +1,6 @@
 package app.desperse.ui.screens.create
 
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,25 +9,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,24 +36,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import app.desperse.data.model.MediaConstants
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
-import app.desperse.ui.components.MentionTextField
-import app.desperse.ui.screens.create.components.CategorySelector
-import app.desperse.ui.screens.create.components.CoverPickerCard
-import app.desperse.ui.screens.create.components.EditionOptionsCard
-import app.desperse.ui.screens.create.components.FormCard
-import app.desperse.ui.screens.create.components.MultiMediaPicker
-import app.desperse.ui.screens.create.components.NftMetadataCard
-import app.desperse.ui.screens.create.components.PermanentStorageSection
+import app.desperse.ui.screens.create.components.AttachmentSheet
+import app.desperse.ui.screens.create.components.CopyrightSheet
+import app.desperse.ui.screens.create.components.EditionDetailsSheet
+import app.desperse.ui.screens.create.components.NftDetailsSheet
+import app.desperse.ui.screens.create.components.PermanentStorageSheet
 import app.desperse.ui.screens.create.components.PostTypeSelector
-import app.desperse.ui.screens.create.components.TimedEditionSection
-import app.desperse.ui.screens.settings.LICENSE_PRESETS
-import app.desperse.ui.screens.settings.SUGGESTED_STATEMENTS
-import app.desperse.ui.theme.DesperseRadius
+import app.desperse.ui.screens.create.components.TimedEditionSheet
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.toneCollectible
 import app.desperse.ui.theme.toneDestructive
@@ -75,6 +61,7 @@ fun CreateScreen(
     editPostId: String? = null,
     onPostCreated: (String) -> Unit,
     onClose: () -> Unit,
+    onBack: (() -> Unit)? = null,
     onManageStorageCredits: () -> Unit = {},
     viewModel: CreatePostViewModel = hiltViewModel()
 ) {
@@ -109,22 +96,119 @@ fun CreateScreen(
         }
     }
 
-    // Derive needsCover from whether any media item is non-previewable
-    val hasNonPreviewable = remember(uiState.mediaItems) {
-        uiState.mediaItems.any { !MediaConstants.isPreviewable(it.mediaType) }
-    }
-    val needsCover = hasNonPreviewable
-
-    // Derive primary media type for edition protect-download check
-    val primaryMediaType = remember(uiState.mediaItems) {
-        uiState.mediaItems.firstOrNull { !MediaConstants.isPreviewable(it.mediaType) }?.mediaType ?: ""
-    }
-
     // Theme-aware tone colors
     val standardColor = toneStandard()
     val collectibleColor = toneCollectible()
     val editionColor = toneEdition()
     val destructiveColor = toneDestructive()
+
+    // Sheet states
+    var showNftDetailsSheet by remember { mutableStateOf(false) }
+    var showAttachmentSheet by remember { mutableStateOf(false) }
+    var showEditionDetailsSheet by remember { mutableStateOf(false) }
+    var showTimedEditionSheet by remember { mutableStateOf(false) }
+    var showStorageSheet by remember { mutableStateOf(false) }
+    var showCopyrightSheet by remember { mutableStateOf(false) }
+
+    // --- Sheets ---
+
+    if (isNftType) {
+        val nftAccent = if (isEdition) editionColor else collectibleColor
+
+        NftDetailsSheet(
+            isOpen = showNftDetailsSheet,
+            onDismiss = { showNftDetailsSheet = false },
+            nftName = uiState.nftName,
+            nftDescription = uiState.nftDescription,
+            isMutable = uiState.isMutable,
+            nftSymbol = uiState.nftSymbol,
+            royalties = uiState.royalties,
+            enabled = uiState.fieldLocking.areNftFieldsEditable,
+            mutabilityEditable = uiState.fieldLocking.isMutabilityEditable,
+            accentColor = nftAccent,
+            isEdition = isEdition,
+            onNameChange = { viewModel.updateNftName(it) },
+            onDescriptionChange = { viewModel.updateNftDescription(it) },
+            onMutableChange = { viewModel.updateIsMutable(it) },
+            onSymbolChange = { viewModel.updateNftSymbol(it) },
+            onRoyaltiesChange = { viewModel.updateRoyalties(it) }
+        )
+
+        AttachmentSheet(
+            isOpen = showAttachmentSheet,
+            onDismiss = { showAttachmentSheet = false },
+            attachments = uiState.attachments,
+            onAdd = { uri -> viewModel.addAttachment(uri) },
+            onRemove = { id -> viewModel.removeAttachment(id) },
+            protectDownload = uiState.protectDownload,
+            onProtectDownloadChange = if (isEdition) {
+                { viewModel.updateProtectDownload(it) }
+            } else null
+        )
+
+        CopyrightSheet(
+            isOpen = showCopyrightSheet,
+            onDismiss = { showCopyrightSheet = false },
+            licensePreset = uiState.copyrightLicensePreset,
+            licenseCustom = uiState.copyrightLicenseCustom,
+            copyrightHolder = uiState.copyrightHolder,
+            copyrightRights = uiState.copyrightRights,
+            enabled = uiState.fieldLocking.areNftFieldsEditable,
+            accentColor = nftAccent,
+            onPresetChange = { viewModel.updateCopyrightLicensePreset(it) },
+            onCustomChange = { viewModel.updateCopyrightLicenseCustom(it) },
+            onHolderChange = { viewModel.updateCopyrightHolder(it) },
+            onRightsChange = { viewModel.updateCopyrightRights(it) }
+        )
+    }
+
+    if (isEdition) {
+        EditionDetailsSheet(
+            isOpen = showEditionDetailsSheet,
+            onDismiss = { showEditionDetailsSheet = false },
+            priceDisplay = uiState.priceDisplay,
+            currency = uiState.currency,
+            maxSupplyEnabled = uiState.maxSupplyEnabled,
+            maxSupplyDisplay = uiState.maxSupplyDisplay,
+            pricingEnabled = uiState.fieldLocking.arePricingEditable,
+            onPriceChange = { viewModel.updatePrice(it) },
+            onCurrencyChange = { viewModel.updateCurrency(it) },
+            onMaxSupplyToggle = { viewModel.toggleMaxSupply(it) },
+            onMaxSupplyChange = { viewModel.updateMaxSupply(it) }
+        )
+
+        TimedEditionSheet(
+            isOpen = showTimedEditionSheet,
+            onDismiss = { showTimedEditionSheet = false },
+            enabled = uiState.mintWindowEnabled,
+            startMode = uiState.mintWindowStartMode,
+            startTime = uiState.mintWindowStartTime,
+            durationHours = uiState.mintWindowDurationHours,
+            isLocked = uiState.fieldLocking.areTimeWindowFieldsLocked,
+            onToggle = { viewModel.toggleMintWindow(it) },
+            onStartModeChange = { viewModel.updateMintWindowStartMode(it) },
+            onStartTimeChange = { viewModel.updateMintWindowStartTime(it) },
+            onDurationChange = { viewModel.updateMintWindowDurationHours(it) },
+            isDoneEnabled = viewModel.isMintWindowValid()
+        )
+
+        if (!uiState.isEditMode || uiState.storageType == "arweave") {
+            PermanentStorageSheet(
+                isOpen = showStorageSheet,
+                onDismiss = { showStorageSheet = false },
+                storageType = uiState.storageType,
+                fundingState = uiState.arweaveFundingState,
+                isLocked = uiState.fieldLocking.isStorageTypeLocked,
+                isEditMode = uiState.isEditMode,
+                onStorageTypeChange = { viewModel.updateStorageType(it) },
+                onRetryCheck = { viewModel.checkArweaveFunding() },
+                isDoneEnabled = viewModel.isStorageValid()
+            )
+        }
+    }
+
+    // --- Screen ---
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -135,13 +219,18 @@ fun CreateScreen(
                     )
                 },
                 navigationIcon = {
-                    androidx.compose.material3.IconButton(onClick = onClose) {
-                        FaIcon(FaIcons.Xmark, size = 20.dp)
+                    if (onBack != null) {
+                        androidx.compose.material3.IconButton(onClick = onBack) {
+                            FaIcon(FaIcons.ArrowLeft, size = 20.dp)
+                        }
+                    } else {
+                        androidx.compose.material3.IconButton(onClick = onClose) {
+                            FaIcon(FaIcons.Xmark, size = 20.dp)
+                        }
                     }
                 },
                 actions = {
                     if (uiState.isEditMode) {
-                        // Delete button
                         TextButton(
                             onClick = { viewModel.showDeleteConfirmation() },
                             enabled = !uiState.isDeleting
@@ -176,304 +265,148 @@ fun CreateScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .imePadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = DesperseSpacing.lg),
-                verticalArrangement = Arrangement.spacedBy(DesperseSpacing.xxl)
             ) {
-                Spacer(modifier = Modifier.height(DesperseSpacing.xs))
-
-                // 1. Media section (label + picker, no card wrapper — dashed border already)
-                Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)) {
-                    Text(
-                        text = "Media",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    MultiMediaPicker(
-                        mediaItems = uiState.mediaItems,
-                        isLocked = uiState.fieldLocking.isMediaLocked,
-                        onAddMedia = { viewModel.addMediaItem(it) },
-                        onRemoveMedia = { viewModel.removeMediaItem(it) }
-                    )
-
-                    // Cover image picker (for audio/document/3D)
-                    if (needsCover || uiState.coverMedia != null) {
-                        CoverPickerCard(
-                            coverMedia = uiState.coverMedia,
-                            onCoverSelected = { viewModel.onCoverSelected(it) },
-                            onRemove = { viewModel.removeCover() }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = DesperseSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
+                ) {
+                    // Post Type Selector (hidden in edit mode)
+                    if (!uiState.isEditMode) {
+                        PostTypeSelector(
+                            selectedType = uiState.postType,
+                            onTypeSelected = { viewModel.updatePostType(it) }
                         )
                     }
-                }
 
-                // 2. Post Type Selector (hidden in edit mode)
-                if (!uiState.isEditMode) {
-                    PostTypeSelector(
-                        selectedType = uiState.postType,
-                        onTypeSelected = { viewModel.updatePostType(it) }
-                    )
-                }
+                    // Sheet rows for collectible/edition
+                    if (isNftType) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                // 3. Caption + Categories + NFT fields card
-                FormCard {
-                    // Caption section
-                    Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)) {
-                        Text(
-                            text = "Caption",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
+                        // NFT Details
+                        SheetRow(
+                            title = "NFT Details",
+                            subtitle = uiState.nftName.ifBlank { null },
+                            required = uiState.nftName.isBlank(),
+                            destructiveColor = destructiveColor,
+                            onClick = { showNftDetailsSheet = true }
                         )
-                        var captionFocused by remember { mutableStateOf(false) }
-                        val captionTone = when (uiState.postType) {
-                            "collectible" -> collectibleColor
-                            "edition" -> editionColor
-                            else -> standardColor
+                    }
+
+                    if (isEdition) {
+                        // Edition Details (price, supply)
+                        val priceSubtitle = uiState.priceDisplay.toDoubleOrNull()?.let {
+                            "${uiState.priceDisplay} ${uiState.currency}"
                         }
-                        val captionBorderColor = if (captionFocused) captionTone
-                            else MaterialTheme.colorScheme.outlineVariant
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    width = if (captionFocused) 2.dp else 1.dp,
-                                    color = captionBorderColor,
-                                    shape = RoundedCornerShape(DesperseRadius.sm)
-                                )
-                                .padding(horizontal = DesperseSpacing.lg, vertical = DesperseSpacing.md)
-                        ) {
-                            MentionTextField(
-                                value = uiState.caption,
-                                onValueChange = { viewModel.updateCaption(it) },
-                                onSearch = { query -> viewModel.searchMentionUsers(query) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(min = 80.dp),
-                                placeholder = "Write a caption...",
-                                enabled = uiState.fieldLocking.isCaptionEditable,
-                                maxLines = 8,
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    color = MaterialTheme.colorScheme.onSurface
-                                ),
-                                onFocusChanged = { captionFocused = it }
+                        SheetRow(
+                            title = "Edition Details",
+                            subtitle = priceSubtitle,
+                            required = uiState.priceDisplay.isBlank(),
+                            destructiveColor = destructiveColor,
+                            onClick = { showEditionDetailsSheet = true }
+                        )
+                    }
+
+                    // Attachments (after edition details for editions, after NFT details for collectibles)
+                    if (isNftType) {
+                        SheetRow(
+                            title = "Attachments",
+                            subtitle = uiState.attachments.firstOrNull()?.let { it.fileName.ifBlank { "Uploading..." } },
+                            onClick = { showAttachmentSheet = true }
+                        )
+                    }
+
+                    if (isEdition) {
+                        // Timed Edition
+                        val durationHours = uiState.mintWindowDurationHours
+                        val startTime = uiState.mintWindowStartTime
+                        val timedSubtitle = if (uiState.mintWindowEnabled && durationHours != null) {
+                            val start = if (uiState.mintWindowStartMode == "scheduled" && startTime != null) {
+                                app.desperse.ui.util.MintWindowUtils.formatDateTime(startTime)
+                            } else "On publish"
+                            val durationMs = (durationHours * 3600_000).toLong()
+                            val duration = app.desperse.ui.util.MintWindowUtils.formatDuration(durationMs)
+                            "$start · $duration"
+                        } else if (uiState.mintWindowEnabled) {
+                            "Enabled"
+                        } else null
+                        SheetRow(
+                            title = "Timed Edition",
+                            subtitle = timedSubtitle,
+                            onClick = { showTimedEditionSheet = true }
+                        )
+
+                        // Permanent Storage
+                        if (!uiState.isEditMode || uiState.storageType == "arweave") {
+                            val storageSubtitle = if (uiState.storageType == "arweave") {
+                                if (viewModel.isStorageValid()) "Arweave" else "Setup required"
+                            } else null
+                            SheetRow(
+                                title = "Permanent Storage",
+                                subtitle = storageSubtitle,
+                                onClick = { showStorageSheet = true }
                             )
                         }
-                        // Character counter + hashtag hint
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = DesperseSpacing.lg),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    }
+
+                    if (isNftType) {
+                        // Copyright & Licensing
+                        SheetRow(
+                            title = "Copyright & Licensing",
+                            subtitle = uiState.copyrightLicensePreset,
+                            onClick = { showCopyrightSheet = true }
+                        )
+                    }
+
+                    // Error banner
+                    uiState.submitError?.let { error ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = destructiveColor.copy(alpha = 0.1f),
+                            shape = MaterialTheme.shapes.small
                         ) {
                             Text(
-                                "Use #hashtags for custom topics",
+                                error,
+                                modifier = Modifier.padding(DesperseSpacing.md),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                "${uiState.caption.length} / 2000",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = destructiveColor
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(DesperseSpacing.lg))
-
-                    // Categories section
-                    CategorySelector(
-                        selectedCategories = uiState.selectedCategories,
-                        onToggle = { viewModel.toggleCategory(it) },
-                        enabled = uiState.fieldLocking.areCategoriesEditable
-                    )
-
-                    // NFT Name & Description (for collectible/edition) — inside same card
-                    if (isNftType) {
-                        Spacer(modifier = Modifier.height(DesperseSpacing.lg))
-
-                        val nftTone = if (isEdition) editionColor else collectibleColor
-
-                        Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)) {
-                            Text(
-                                text = "NFT Name" + if (isEdition) " *" else "",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            OutlinedTextField(
-                                value = uiState.nftName,
-                                onValueChange = { viewModel.updateNftName(it) },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("Enter NFT name") },
-                                singleLine = true,
-                                enabled = uiState.fieldLocking.areNftFieldsEditable,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = nftTone,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                    cursorColor = nftTone,
-                                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                shape = RoundedCornerShape(DesperseRadius.sm),
-                                supportingText = {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        Text(
-                                            "${uiState.nftName.length} / 32",
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            )
-
-                            Text(
-                                text = "NFT Description",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            OutlinedTextField(
-                                value = uiState.nftDescription,
-                                onValueChange = { viewModel.updateNftDescription(it) },
-                                modifier = Modifier.fillMaxWidth(),
-                                placeholder = { Text("Enter NFT description") },
-                                minLines = 3,
-                                maxLines = 5,
-                                enabled = uiState.fieldLocking.areNftFieldsEditable,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = nftTone,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                                    cursorColor = nftTone,
-                                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                shape = RoundedCornerShape(DesperseRadius.sm),
-                                supportingText = {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        Text(
-                                            "${uiState.nftDescription.length} / 5000",
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                    }
                 }
 
-                // 4. Edition Options card (edition only)
-                if (isEdition) {
-                    FormCard {
-                        EditionOptionsCard(
-                            priceDisplay = uiState.priceDisplay,
-                            currency = uiState.currency,
-                            maxSupplyEnabled = uiState.maxSupplyEnabled,
-                            maxSupplyDisplay = uiState.maxSupplyDisplay,
-                            protectDownload = uiState.protectDownload,
-                            showProtectDownload = primaryMediaType in setOf("document", "audio", "3d"),
-                            pricingEnabled = uiState.fieldLocking.arePricingEditable,
-                            onPriceChange = { viewModel.updatePrice(it) },
-                            onCurrencyChange = { viewModel.updateCurrency(it) },
-                            onMaxSupplyToggle = { viewModel.toggleMaxSupply(it) },
-                            onMaxSupplyChange = { viewModel.updateMaxSupply(it) },
-                            onProtectDownloadChange = { viewModel.updateProtectDownload(it) }
-                        )
+                // Post type description above publish button
+                if (!uiState.isEditMode) {
+                    val typeDescription = when (uiState.postType) {
+                        "post" -> "Share your work without minting"
+                        "collectible" -> "Followers can collect this as a free NFT"
+                        "edition" -> "Sell limited or open NFT editions"
+                        else -> null
                     }
-
-                    // 4b. Timed Edition card (edition only)
-                    FormCard {
-                        TimedEditionSection(
-                            enabled = uiState.mintWindowEnabled,
-                            startMode = uiState.mintWindowStartMode,
-                            startTime = uiState.mintWindowStartTime,
-                            durationHours = uiState.mintWindowDurationHours,
-                            isLocked = uiState.fieldLocking.areTimeWindowFieldsLocked,
-                            onToggle = { viewModel.toggleMintWindow(it) },
-                            onStartModeChange = { viewModel.updateMintWindowStartMode(it) },
-                            onStartTimeChange = { viewModel.updateMintWindowStartTime(it) },
-                            onDurationChange = { viewModel.updateMintWindowDurationHours(it) }
-                        )
-                    }
-
-                    // 5. Permanent Storage card (edition only, not in edit mode)
-                    if (!uiState.isEditMode || uiState.storageType == "arweave") {
-                        FormCard {
-                            PermanentStorageSection(
-                                storageType = uiState.storageType,
-                                fundingState = uiState.arweaveFundingState,
-                                isLocked = uiState.fieldLocking.isStorageTypeLocked,
-                                isEditMode = uiState.isEditMode,
-                                onStorageTypeChange = { viewModel.updateStorageType(it) },
-                                onManageCreditsClick = onManageStorageCredits,
-                                onRetryCheck = { viewModel.checkArweaveFunding() }
-                            )
-                        }
-                    }
-                }
-
-                // 6. NFT Metadata card (collectible/edition, collapsible)
-                if (isNftType) {
-                    FormCard {
-                        NftMetadataCard(
-                            nftSymbol = uiState.nftSymbol,
-                            royalties = uiState.royalties,
-                            isMutable = uiState.isMutable,
-                            nftFieldsEditable = uiState.fieldLocking.areNftFieldsEditable,
-                            mutabilityEditable = uiState.fieldLocking.isMutabilityEditable,
-                            onSymbolChange = { viewModel.updateNftSymbol(it) },
-                            onRoyaltiesChange = { viewModel.updateRoyalties(it) },
-                            onMutableChange = { viewModel.updateIsMutable(it) }
-                        )
-                    }
-                }
-
-                // 7. Copyright & Licensing (collectible/edition only)
-                if (isNftType) {
-                    FormCard {
-                        CopyrightSection(
-                            licensePreset = uiState.copyrightLicensePreset,
-                            licenseCustom = uiState.copyrightLicenseCustom,
-                            copyrightHolder = uiState.copyrightHolder,
-                            copyrightRights = uiState.copyrightRights,
-                            enabled = uiState.fieldLocking.areNftFieldsEditable,
-                            accentColor = if (isEdition) editionColor else collectibleColor,
-                            onPresetChange = { viewModel.updateCopyrightLicensePreset(it) },
-                            onCustomChange = { viewModel.updateCopyrightLicenseCustom(it) },
-                            onHolderChange = { viewModel.updateCopyrightHolder(it) },
-                            onRightsChange = { viewModel.updateCopyrightRights(it) }
-                        )
-                    }
-                }
-
-                // Error banner
-                uiState.submitError?.let { error ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = destructiveColor.copy(alpha = 0.1f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
+                    if (typeDescription != null) {
                         Text(
-                            error,
-                            modifier = Modifier.padding(DesperseSpacing.md),
+                            typeDescription,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = DesperseSpacing.lg, vertical = DesperseSpacing.sm),
                             style = MaterialTheme.typography.bodySmall,
-                            color = destructiveColor
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
 
-                // Publish / Save button (full-width pill, matching web)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Button(
                     onClick = { viewModel.submit() },
                     enabled = viewModel.isValid() && !uiState.isSubmitting,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = DesperseSpacing.lg, vertical = DesperseSpacing.md)
                         .height(44.dp),
                     shape = RoundedCornerShape(50),
                     colors = ButtonDefaults.buttonColors(
@@ -497,9 +430,6 @@ fun CreateScreen(
                         )
                     }
                 }
-
-                // Bottom spacing
-                Spacer(modifier = Modifier.height(DesperseSpacing.xxxl))
             }
         }
 
@@ -539,173 +469,49 @@ fun CreateScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Reusable tappable row that opens a sheet. Shows title, optional subtitle, and chevron.
+ */
 @Composable
-private fun CopyrightSection(
-    licensePreset: String?,
-    licenseCustom: String,
-    copyrightHolder: String,
-    copyrightRights: String,
-    enabled: Boolean,
-    accentColor: Color,
-    onPresetChange: (String?) -> Unit,
-    onCustomChange: (String) -> Unit,
-    onHolderChange: (String) -> Unit,
-    onRightsChange: (String) -> Unit
+private fun SheetRow(
+    title: String,
+    subtitle: String? = null,
+    required: Boolean = false,
+    destructiveColor: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    onClick: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)) {
-        Text(
-            text = "Copyright & Licensing",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Text(
-            text = "Set copyright and licensing for this post",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        // License dropdown
-        var expanded by remember { mutableStateOf(false) }
-        val displayText = licensePreset ?: "None"
-
-        ExposedDropdownMenuBox(
-            expanded = expanded && enabled,
-            onExpandedChange = { if (enabled) expanded = it }
-        ) {
-            OutlinedTextField(
-                value = displayText,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("License Type") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                enabled = enabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = accentColor,
-                    cursorColor = accentColor,
-                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                shape = RoundedCornerShape(DesperseRadius.sm)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = DesperseSpacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
             )
-            ExposedDropdownMenu(
-                expanded = expanded && enabled,
-                onDismissRequest = { expanded = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("None") },
-                    onClick = {
-                        onPresetChange(null)
-                        expanded = false
-                    }
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                LICENSE_PRESETS.forEach { preset ->
-                    DropdownMenuItem(
-                        text = { Text(preset) },
-                        onClick = {
-                            onPresetChange(preset)
-                            expanded = false
-                        }
-                    )
-                }
+            } else if (required) {
+                Text(
+                    "Required",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = destructiveColor
+                )
             }
         }
-
-        // Custom license text (only when CUSTOM)
-        if (licensePreset == "CUSTOM") {
-            OutlinedTextField(
-                value = licenseCustom,
-                onValueChange = onCustomChange,
-                label = { Text("Custom License") },
-                placeholder = { Text("e.g., MIT, Apache-2.0") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = enabled,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = accentColor,
-                    cursorColor = accentColor,
-                    disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                    disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                shape = RoundedCornerShape(DesperseRadius.sm),
-                supportingText = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Text("${licenseCustom.length} / 100")
-                    }
-                }
-            )
-        }
-
-        // Rights Holder
-        OutlinedTextField(
-            value = copyrightHolder,
-            onValueChange = onHolderChange,
-            label = { Text("Rights Holder") },
-            placeholder = { Text("Legal name or entity") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            enabled = enabled,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = accentColor,
-                cursorColor = accentColor,
-                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            shape = RoundedCornerShape(DesperseRadius.sm),
-            supportingText = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text("${copyrightHolder.length} / 200")
-                }
-            }
+        FaIcon(
+            icon = FaIcons.ChevronRight,
+            size = 14.dp,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
-        // Rights Statement
-        OutlinedTextField(
-            value = copyrightRights,
-            onValueChange = onRightsChange,
-            label = { Text("Rights Statement") },
-            placeholder = { Text("Describe usage rights and restrictions") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 2,
-            maxLines = 4,
-            enabled = enabled,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = accentColor,
-                cursorColor = accentColor,
-                disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-            shape = RoundedCornerShape(DesperseRadius.sm),
-            supportingText = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text("${copyrightRights.length} / 1000")
-                }
-            }
-        )
-
-        // Use suggested statement button
-        val suggestedStatement = licensePreset?.let { SUGGESTED_STATEMENTS[it] }
-        if (suggestedStatement != null && copyrightRights != suggestedStatement && enabled) {
-            TextButton(
-                onClick = { onRightsChange(suggestedStatement) },
-                colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
-            ) {
-                Text("Use suggested statement")
-            }
-        }
     }
 }

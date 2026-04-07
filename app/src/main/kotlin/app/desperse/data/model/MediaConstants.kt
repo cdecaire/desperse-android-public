@@ -15,7 +15,9 @@ object MediaConstants {
 
     val SUPPORTED_AUDIO_TYPES = setOf("audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3")
 
-    val SUPPORTED_DOCUMENT_TYPES = setOf("application/pdf", "application/zip", "application/epub+zip")
+    val SUPPORTED_DOCUMENT_TYPES = setOf(
+        "application/pdf", "application/zip", "application/x-zip-compressed", "application/epub+zip"
+    )
 
     val SUPPORTED_3D_TYPES = setOf(
         "model/gltf-binary", "model/gltf+json", "application/octet-stream"
@@ -64,6 +66,7 @@ object MediaConstants {
         "audio/ogg" to "ogg",
         "application/pdf" to "pdf",
         "application/zip" to "zip",
+        "application/x-zip-compressed" to "zip",
         "application/epub+zip" to "epub",
         "model/gltf-binary" to "glb",
         "model/gltf+json" to "gltf"
