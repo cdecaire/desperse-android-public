@@ -166,9 +166,11 @@ fun PostDetailScreen(
                     onCollectClick = { viewModel.collect() },
                     onPurchaseClick = { viewModel.purchase(activity) },
                     onDownloadClick = {
-                        // Priority: assetId > downloadableAssets[0].id (matches web)
-                        val downloadAssetId = post.assetId
-                            ?: post.downloadableAssets?.firstOrNull()?.id
+                        // downloadableAssets is the attachment (PDF/ZIP/EPUB alongside image).
+                        // assetId is the primary media asset — correct fallback when the primary
+                        // media itself is the downloadable file (no separate attachment list).
+                        val downloadAssetId = post.downloadableAssets?.firstOrNull()?.id
+                            ?: post.assetId
                             ?: return@StickyFooterCta
                         coroutineScope.launch {
                             downloadManager.downloadGatedAsset(context, downloadAssetId)
