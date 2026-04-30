@@ -34,8 +34,15 @@ data class WhatsNewContent(
  * Add a new entry here each time you release a version.
  */
 val changelogs = mapOf(
-    10 to WhatsNewContent(
-        version = "1.1.0",
+    12 to WhatsNewContent(
+        version = "1.1.2",
+        items = listOf(
+            "Block users from post menus, profiles, and DMs",
+            "Manage blocked accounts in Settings",
+        )
+    ),
+    11 to WhatsNewContent(
+        version = "1.1.1",
         items = listOf(
             "Redesigned post creation with media previews and step-by-step flow",
             "Double-tap to like posts with heart animation",

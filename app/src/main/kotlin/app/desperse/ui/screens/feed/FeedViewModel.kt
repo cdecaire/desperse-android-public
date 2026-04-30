@@ -110,9 +110,15 @@ class FeedViewModel @Inject constructor(
         viewModelScope.launch {
             postUpdateManager.blockUpdates.collect { update ->
                 if (update.isBlocked) {
-                    // Drop posts authored by the now-blocked user
+                    // Drop posts authored by the now-blocked user from the active UI state
                     _uiState.update { state ->
                         state.copy(posts = state.posts.filter { it.user.id != update.userId })
+                    }
+                    // Also purge from all tab caches so switching tabs doesn't resurface them
+                    tabCaches.entries.forEach { (key, cache) ->
+                        tabCaches[key] = cache.copy(
+                            posts = cache.posts.filter { it.user.id != update.userId }
+                        )
                     }
                 } else {
                     // Unblock — refetch to surface their posts again

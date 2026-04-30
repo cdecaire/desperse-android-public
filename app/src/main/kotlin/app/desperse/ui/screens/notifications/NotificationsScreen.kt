@@ -79,6 +79,7 @@ import java.time.format.DateTimeParseException
 fun NotificationsScreen(
     onPostClick: (String) -> Unit,
     onUserClick: (String) -> Unit,
+    onBack: (() -> Unit)? = null,
     viewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -136,6 +137,13 @@ fun NotificationsScreen(
                             interactionSource = remember { MutableInteractionSource() }
                         ) { scope.launch { listState.animateScrollToItem(0) } }
                     )
+                },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            FaIcon(FaIcons.ArrowLeft, size = 20.dp)
+                        }
+                    }
                 },
                 actions = {
                     if (uiState.notifications.isNotEmpty()) {

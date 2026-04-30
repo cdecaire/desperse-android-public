@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity() {
 
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
 
         // Wire the ActivityResultLauncher to MwaManager for proper MWA intent launching
         mwaManager.setActivityResultLauncher(mwaLauncher)

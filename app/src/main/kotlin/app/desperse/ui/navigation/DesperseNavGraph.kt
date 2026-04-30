@@ -388,11 +388,10 @@ sealed class Screen(
     object Profile : Screen("profile", "Profile", FaIcons.User)
 }
 
-// Bottom nav items (6 items - unconventional but fits the app well)
+// Bottom nav items — Create is rendered as a special action button, not a nav destination
 val bottomNavScreens = listOf(
     Screen.Feed,
     Screen.Explore,
-    Screen.Notifications,
     Screen.Messages,
     Screen.Profile
 )
@@ -610,7 +609,7 @@ fun DesperseNavGraph(
                 FeedScreen(
                     onPostClick = { postId -> navController.navigate("post/$postId") },
                     onUserClick = { slug -> navController.navigate("profile/$slug") },
-                    onCreateClick = { navController.navigate(Screen.Create.route) },
+                    onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
                     onEditPost = { postId -> navController.navigate("edit_flow/$postId") },
                     scrollBehavior = scrollBehavior
                 )
@@ -720,7 +719,8 @@ fun DesperseNavGraph(
             composable(Screen.Notifications.route) {
                 NotificationsScreen(
                     onPostClick = { postId -> navController.navigate("post/$postId") },
-                    onUserClick = { slug -> navController.navigate("profile/$slug") }
+                    onUserClick = { slug -> navController.navigate("profile/$slug") },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.Messages.route) {
@@ -947,7 +947,6 @@ fun DesperseNavGraph(
             DesperseBottomNav(
                 currentDestination = currentDestination,
                 currentUser = currentUser,
-                hasUnreadNotifications = notificationCounters.unreadNotifications > 0,
                 hasUnreadMessages = hasUnreadMessages,
                 bottomNavVisibility = bottomNavVisibility,
                 bottomNavHeightPx = bottomNavHeightPx,
@@ -960,6 +959,7 @@ fun DesperseNavGraph(
                         restoreState = true
                     }
                 },
+                onCreateClick = { navController.navigate(Screen.Create.route) },
                 onMoreClick = { showMoreMenu = true },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -1041,11 +1041,11 @@ private fun buildConversationRoute(
 private fun DesperseBottomNav(
     currentDestination: androidx.navigation.NavDestination?,
     currentUser: User?,
-    hasUnreadNotifications: Boolean,
     hasUnreadMessages: Boolean,
     bottomNavVisibility: Float,
     bottomNavHeightPx: Float,
     onNavigate: (String) -> Unit,
+    onCreateClick: () -> Unit,
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1062,29 +1062,39 @@ private fun DesperseBottomNav(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                // Asymmetric padding: less on top, more on bottom for gesture bar clearance
                 .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            bottomNavScreens.forEach { screen ->
+            // Feed, Explore
+            bottomNavScreens.take(2).forEach { screen ->
                 val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                val isProfile = screen == Screen.Profile
-                val isNotifications = screen == Screen.Notifications
-                val isMessages = screen == Screen.Messages
-
-                val showBadge = when {
-                    isNotifications -> hasUnreadNotifications
-                    isMessages -> hasUnreadMessages
-                    else -> false
-                }
-
                 BottomNavItem(
                     icon = screen.icon,
                     label = screen.title,
                     isSelected = isSelected,
-                    avatarUrl = if (isProfile) currentUser?.avatarUrl else null,
-                    showBadge = showBadge,
+                    onClick = { onNavigate(screen.route) }
+                )
+            }
+
+            // Create action — never selected, always an action
+            BottomNavItem(
+                icon = FaIcons.Plus,
+                label = "Create",
+                isSelected = false,
+                onClick = onCreateClick
+            )
+
+            // Messages, Profile
+            bottomNavScreens.drop(2).forEach { screen ->
+                val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                val isMessages = screen == Screen.Messages
+                BottomNavItem(
+                    icon = screen.icon,
+                    label = screen.title,
+                    isSelected = isSelected,
+                    avatarUrl = if (screen == Screen.Profile) currentUser?.avatarUrl else null,
+                    showBadge = if (isMessages) hasUnreadMessages else false,
                     onClick = { onNavigate(screen.route) }
                 )
             }

@@ -55,7 +55,7 @@
             android:theme="@style/Theme.Desperse"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustNothing">
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -92,7 +92,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="desperse"
+                    android:scheme="${privyOAuthScheme}"
                     android:host="auth" />
             </intent-filter>
         </activity>

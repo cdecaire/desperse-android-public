@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -86,7 +88,7 @@ import app.desperse.ui.theme.DesperseSpacing
 fun FeedScreen(
     onPostClick: (String) -> Unit,
     onUserClick: (String) -> Unit,
-    onCreateClick: () -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
     onEditPost: (String) -> Unit = {},
     scrollBehavior: TopAppBarScrollBehavior? = null,
     viewModel: FeedViewModel = hiltViewModel()
@@ -188,8 +190,9 @@ fun FeedScreen(
             FeedTopBar(
                 selectedTab = selectedTab,
                 onTabSelected = { viewModel.switchTab(it) },
-                onCreateClick = onCreateClick,
                 onWalletClick = { showWalletSheet = true },
+                onNotificationsClick = onNotificationsClick,
+                hasUnreadNotifications = notificationCounters.unreadNotifications > 0,
                 onTitleClick = { scope.launch { listState.animateScrollToItem(0) } },
                 scrollBehavior = effectiveScrollBehavior,
                 forYouNewCount = notificationCounters.forYouNewPostsCount,
@@ -508,8 +511,9 @@ fun FeedScreen(
 private fun FeedTopBar(
     selectedTab: String,
     onTabSelected: (String) -> Unit,
-    onCreateClick: () -> Unit,
     onWalletClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    hasUnreadNotifications: Boolean = false,
     onTitleClick: () -> Unit = {},
     scrollBehavior: TopAppBarScrollBehavior,
     forYouNewCount: Int = 0,
@@ -548,20 +552,47 @@ private fun FeedTopBar(
             },
             navigationIcon = {
                 DesperseFaIconButton(
-                    icon = FaIcons.Plus,
-                    onClick = onCreateClick,
-                    contentDescription = "Create post",
-                    variant = ButtonVariant.Ghost
-                )
-            },
-            actions = {
-                DesperseFaIconButton(
                     icon = FaIcons.Wallet,
                     onClick = onWalletClick,
                     contentDescription = "Wallet",
                     variant = ButtonVariant.Ghost,
                     style = FaIconStyle.Regular
                 )
+            },
+            actions = {
+                androidx.compose.ui.layout.Layout(
+                    content = {
+                        DesperseFaIconButton(
+                            icon = FaIcons.Bell,
+                            onClick = onNotificationsClick,
+                            contentDescription = "Notifications",
+                            variant = ButtonVariant.Ghost,
+                            style = FaIconStyle.Regular
+                        )
+                        if (hasUnreadNotifications) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.error,
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                    }
+                ) { measurables, constraints ->
+                    val buttonPlaceable = measurables[0].measure(constraints)
+                    val badgePlaceable = measurables.getOrNull(1)?.measure(constraints)
+                    layout(buttonPlaceable.width, buttonPlaceable.height) {
+                        buttonPlaceable.placeRelative(0, 0)
+                        if (badgePlaceable != null) {
+                            badgePlaceable.placeRelative(
+                                buttonPlaceable.width - badgePlaceable.width - 6,
+                                6
+                            )
+                        }
+                    }
+                }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.background,

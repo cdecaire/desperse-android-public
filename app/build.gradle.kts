@@ -75,11 +75,13 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+            manifestPlaceholders["privyOAuthScheme"] = "desperse"
         }
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            manifestPlaceholders["privyOAuthScheme"] = "desperse.debug"
         }
     }
 

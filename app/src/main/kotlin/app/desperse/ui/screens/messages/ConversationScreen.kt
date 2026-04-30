@@ -205,6 +205,7 @@ fun ConversationScreen(
         ConversationMenuSheet(
             isOpen = showMenu,
             isBlocked = uiState.isBlocked,
+            otherUserSlug = uiState.otherUserSlug,
             onDismiss = { showMenu = false },
             onGoToProfile = {
                 showMenu = false
@@ -338,6 +339,7 @@ private fun ConversationTopBar(
 private fun ConversationMenuSheet(
     isOpen: Boolean,
     isBlocked: Boolean,
+    otherUserSlug: String?,
     onDismiss: () -> Unit,
     onGoToProfile: () -> Unit,
     onBlock: () -> Unit,
@@ -393,8 +395,8 @@ private fun ConversationMenuSheet(
 
                 // Block / Unblock
                 ConversationMenuItem(
-                    icon = if (isBlocked) FaIcons.LockOpen else FaIcons.Lock,
-                    label = if (isBlocked) "Unblock" else "Block",
+                    icon = if (isBlocked) FaIcons.LockOpen else FaIcons.Ban,
+                    label = if (isBlocked) "Unblock" else if (!otherUserSlug.isNullOrBlank()) "Block @$otherUserSlug" else "Block",
                     tint = if (!isBlocked) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurface,
                     onClick = onBlock

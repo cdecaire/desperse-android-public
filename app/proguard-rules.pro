@@ -1,33 +1,11 @@
 # proguard-rules.pro
 
-# === APP-SPECIFIC ===
-
-# Preserve generic type signatures — required by Retrofit and kotlinx.serialization
+# Preserve generic type signatures and annotations — required by Retrofit and kotlinx.serialization
 -keepattributes Signature, *Annotation*
 
-# Keep the Retrofit API interface with full method signatures
--keep class app.desperse.core.network.DesperseApi { *; }
-
-# Keep all serializable classes (DTOs, models, network envelope, wallet types)
--keep class app.desperse.data.dto.** { *; }
--keep class app.desperse.data.model.** { *; }
--keep class app.desperse.core.network.ApiEnvelope { *; }
--keep class app.desperse.core.network.ApiError { *; }
--keep class app.desperse.core.network.ApiMeta { *; }
--keep class app.desperse.core.network.ErrorEnvelope { *; }
--keep class app.desperse.core.network.ErrorCode { *; }
--keep class app.desperse.core.wallet.AddWalletResponse { *; }
--keep class app.desperse.core.wallet.UserWalletDto { *; }
--keep class app.desperse.core.wallet.UserWalletsResponse { *; }
--keep class app.desperse.core.arweave.** { *; }
-
-# === PRIVY SDK (ships minimal rules, needs protection) ===
+# === PRIVY SDK (ships minimal rules) ===
 -keep class io.privy.** { *; }
 -dontwarn io.privy.**
-
-# === ANDROIDX BROWSER / CHROME CUSTOM TABS (used by Privy for OAuth) ===
--keep class androidx.browser.** { *; }
--dontwarn androidx.browser.**
 
 # === MWA / SOLANA MOBILE (ships empty proguard.txt) ===
 # com.solana.** covers mobilewalletadapter (clientlib, common) AND
@@ -46,18 +24,6 @@
 -dontwarn com.sun.jna.**
 -keep class com.goterl.lazysodium.** { *; }
 -dontwarn com.goterl.lazysodium.**
-
-# === FIREBASE ANALYTICS & MEASUREMENT ===
-# Firebase ships consumer rules but proguard-android-optimize.txt can strip
-# reflection-based measurement classes needed for event collection.
--keep class com.google.android.gms.measurement.** { *; }
--keep class com.google.android.gms.measurement.internal.** { *; }
--keep class com.google.firebase.analytics.** { *; }
--keep class com.google.firebase.iid.** { *; }
--dontwarn com.google.android.gms.measurement.**
-
-# === COIL (ships NO consumer rules) ===
--dontwarn coil.**
 
 # === FILAMENT 3D ENGINE (uses JNI for native rendering) ===
 -keep class com.google.android.filament.** { *; }
