@@ -114,6 +114,8 @@ fun ProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var isDmChecking by remember { mutableStateOf(false) }
     var externalLinkUrl by remember { mutableStateOf<String?>(null) }
+    var showProfileMenu by remember { mutableStateOf(false) }
+    var showBlockConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     // Coroutine scope for showing snackbar messages
@@ -158,6 +160,14 @@ fun ProfileScreen(
                             icon = FaIcons.Wallet,
                             onClick = onWalletClick,
                             contentDescription = "Wallet",
+                            variant = ButtonVariant.Ghost,
+                            style = FaIconStyle.Regular
+                        )
+                    } else if (!uiState.isOwnProfile && uiState.user != null) {
+                        DesperseFaIconButton(
+                            icon = FaIcons.EllipsisVertical,
+                            onClick = { showProfileMenu = true },
+                            contentDescription = "More options",
                             variant = ButtonVariant.Ghost,
                             style = FaIconStyle.Regular
                         )
@@ -213,6 +223,7 @@ fun ProfileScreen(
                                 collectorsCount = uiState.collectorsCount,
                                 isFollowing = uiState.isFollowing,
                                 isOwnProfile = uiState.isOwnProfile,
+                                isBlocked = uiState.isBlocked,
                                 isFollowLoading = uiState.isFollowLoading,
                                 isDmChecking = isDmChecking,
                                 onFollowClick = { viewModel.toggleFollow() },
@@ -250,6 +261,16 @@ fun ProfileScreen(
                             )
                         }
 
+                        // Blocked banner replaces tabs/grid
+                        if (uiState.isBlocked) {
+                            item(span = { GridItemSpan(3) }) {
+                                BlockedProfileBanner(
+                                    slug = uiState.user!!.slug,
+                                    isBlockLoading = uiState.isBlockLoading,
+                                    onUnblock = { viewModel.unblockUser() }
+                                )
+                            }
+                        } else {
                         // Tabs
                         item(span = { GridItemSpan(3) }) {
                             ProfileTabs(
@@ -297,6 +318,7 @@ fun ProfileScreen(
                                 }
                             }
                         }
+                        } // end !isBlocked
                     }
                 }
             }
@@ -330,6 +352,58 @@ fun ProfileScreen(
                 viewModel.onWalletSelectedForTransaction(wallet.packageName)
             },
             onDismiss = { viewModel.dismissWalletPicker() }
+        )
+    }
+
+    // Profile overflow menu (Block) for other users' profiles
+    if (showProfileMenu && uiState.user != null && !uiState.isOwnProfile && !uiState.isBlocked) {
+        val target = uiState.user!!
+        app.desperse.ui.components.DesperseBottomSheet(
+            isOpen = true,
+            onDismiss = { showProfileMenu = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = DesperseSpacing.xxl)
+            ) {
+                app.desperse.ui.components.SheetMenuItem(
+                    icon = FaIcons.Ban,
+                    label = "Block @${target.slug}",
+                    tint = MaterialTheme.colorScheme.error,
+                    onClick = {
+                        showProfileMenu = false
+                        showBlockConfirmation = true
+                    }
+                )
+            }
+        }
+    }
+
+    // Block confirmation
+    if (showBlockConfirmation && uiState.user != null) {
+        val target = uiState.user!!
+        AlertDialog(
+            onDismissRequest = { showBlockConfirmation = false },
+            title = { Text("Block @${target.slug}?") },
+            text = { Text("They won't be able to find your profile or posts, and you won't see theirs. They won't be notified.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBlockConfirmation = false
+                        viewModel.blockUser()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Block") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBlockConfirmation = false }) { Text("Cancel") }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 
@@ -369,6 +443,7 @@ private fun ProfileHeader(
     collectorsCount: Int,
     isFollowing: Boolean,
     isOwnProfile: Boolean,
+    isBlocked: Boolean = false,
     isFollowLoading: Boolean,
     isDmChecking: Boolean = false,
     onFollowClick: () -> Unit,
@@ -504,7 +579,7 @@ private fun ProfileHeader(
                                 )
                             }
                         }
-                    } else {
+                    } else if (!isBlocked) {
                         // Other profile: Tip + Message + Follow
                         if (onTipClick != null) {
                             IconButton(
@@ -972,6 +1047,44 @@ private fun ProfileEmptyState(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
+    }
+}
+
+@Composable
+private fun BlockedProfileBanner(
+    slug: String,
+    isBlockLoading: Boolean,
+    onUnblock: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(DesperseSpacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(DesperseSpacing.md)
+    ) {
+        FaIcon(
+            icon = FaIcons.Ban,
+            size = 32.dp,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = FaIconStyle.Solid
+        )
+        Text(
+            text = "You blocked @$slug",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "You won't see their posts or profile, and they can't find yours. Unblock to restore.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        DesperseTextButton(
+            text = if (isBlockLoading) "Unblocking..." else "Unblock",
+            onClick = onUnblock,
+            variant = ButtonVariant.Default,
+            enabled = !isBlockLoading
+        )
     }
 }
 

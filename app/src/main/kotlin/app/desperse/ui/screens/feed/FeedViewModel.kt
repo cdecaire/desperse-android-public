@@ -103,6 +103,36 @@ class FeedViewModel @Inject constructor(
         loadFeed()
         observePostUpdates()
         observeCurrentUser()
+        observeBlockUpdates()
+    }
+
+    private fun observeBlockUpdates() {
+        viewModelScope.launch {
+            postUpdateManager.blockUpdates.collect { update ->
+                if (update.isBlocked) {
+                    // Drop posts authored by the now-blocked user
+                    _uiState.update { state ->
+                        state.copy(posts = state.posts.filter { it.user.id != update.userId })
+                    }
+                } else {
+                    // Unblock — refetch to surface their posts again
+                    silentRefresh()
+                }
+            }
+        }
+    }
+
+    fun blockUser(userId: String, displayName: String) {
+        viewModelScope.launch {
+            userRepository.blockUser(userId)
+                .onSuccess {
+                    postUpdateManager.emitBlockUpdate(userId, isBlocked = true)
+                    toastManager.showSuccess("Blocked @$displayName")
+                }
+                .onFailure { error ->
+                    toastManager.showError(error.message ?: "Failed to block user")
+                }
+        }
     }
 
     private fun observeCurrentUser() {

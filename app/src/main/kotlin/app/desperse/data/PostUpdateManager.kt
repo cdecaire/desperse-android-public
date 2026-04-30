@@ -72,6 +72,19 @@ class PostUpdateManager @Inject constructor() {
     suspend fun emitFollowUpdate(userId: String, isFollowing: Boolean, followersCount: Int? = null) {
         _followUpdates.emit(FollowUpdate(userId, isFollowing, followersCount))
     }
+
+    // --- Block updates (keyed by userId) ---
+
+    private val _blockUpdates = MutableSharedFlow<BlockUpdate>(extraBufferCapacity = 10)
+    val blockUpdates: SharedFlow<BlockUpdate> = _blockUpdates.asSharedFlow()
+
+    /**
+     * Emit a block state change for a user. When isBlocked=true, screens should
+     * drop content authored by this user; when false, they should refetch.
+     */
+    suspend fun emitBlockUpdate(userId: String, isBlocked: Boolean) {
+        _blockUpdates.emit(BlockUpdate(userId, isBlocked))
+    }
 }
 
 /**
@@ -119,4 +132,14 @@ data class FollowUpdate(
     val userId: String,
     val isFollowing: Boolean,
     val followersCount: Int? = null
+)
+
+/**
+ * Block state change for a user. Symmetric block: when isBlocked=true,
+ * remove that user's content from any visible surface (feed, profile, etc.);
+ * when false, surfaces should refetch since their content can re-appear.
+ */
+data class BlockUpdate(
+    val userId: String,
+    val isBlocked: Boolean
 )

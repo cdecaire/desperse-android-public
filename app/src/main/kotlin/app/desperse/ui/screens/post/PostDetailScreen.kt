@@ -93,6 +93,7 @@ fun PostDetailScreen(
     val coroutineScope = rememberCoroutineScope()
     var showMenu by remember { mutableStateOf(false) }
     var showDeletePostConfirmation by remember { mutableStateOf(false) }
+    var showBlockConfirmation by remember { mutableStateOf(false) }
 
     // Download manager for gated assets
     val downloadManager = remember {
@@ -234,12 +235,44 @@ fun PostDetailScreen(
                     )
                     showReportSheet = true
                 },
+                onBlock = { showBlockConfirmation = true },
                 onEditPost = { onEditPost(menuPost.id) },
                 onDeletePost = { showDeletePostConfirmation = true },
                 hideGoToPost = true,
                 hasDownloadAccess = menuPost.isCollected || isOwnPost,
                 isOwnPost = isOwnPost
             )
+        }
+
+        // Block confirmation dialog
+        if (showBlockConfirmation) {
+            val blockTarget = uiState.post?.user
+            if (blockTarget != null) {
+                AlertDialog(
+                    onDismissRequest = { showBlockConfirmation = false },
+                    title = { Text("Block @${blockTarget.slug}?") },
+                    text = { Text("They won't be able to find your profile or posts, and you won't see theirs. They won't be notified.") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showBlockConfirmation = false
+                                viewModel.blockUser(blockTarget.id, blockTarget.slug, onBlocked = onBack)
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) { Text("Block") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showBlockConfirmation = false }) {
+                            Text("Cancel")
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         // Delete post confirmation dialog

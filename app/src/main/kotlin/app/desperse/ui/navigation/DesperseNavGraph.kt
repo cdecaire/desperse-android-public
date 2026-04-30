@@ -89,6 +89,7 @@ import app.desperse.ui.screens.profile.FollowListScreen
 import app.desperse.ui.screens.profile.FollowListType
 import app.desperse.ui.screens.profile.ProfileScreen
 import app.desperse.ui.screens.settings.AppSettingsScreen
+import app.desperse.ui.screens.settings.BlockedUsersScreen
 import app.desperse.ui.screens.settings.ChangelogScreen
 import app.desperse.ui.screens.settings.CopyrightSettingsScreen
 import app.desperse.ui.screens.settings.HelpScreen
@@ -875,6 +876,12 @@ fun DesperseNavGraph(
             composable("settings/messaging") {
                 MessagingSettingsScreen(
                     onBack = { navController.popBackStack() }
+                )
+            }
+            composable("settings/blocked") {
+                BlockedUsersScreen(
+                    onBack = { navController.popBackStack() },
+                    onUserClick = { slug -> navController.navigate("profile/$slug") }
                 )
             }
             composable("settings/copyright") {

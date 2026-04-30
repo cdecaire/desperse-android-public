@@ -470,7 +470,8 @@ class UserRepository @Inject constructor(
                     followersCount = data.followersCount,
                     followingCount = data.followingCount,
                     collectorsCount = data.collectorsCount,
-                    isFollowing = data.isFollowing
+                    isFollowing = data.isFollowing,
+                    isBlocked = data.isBlocked
                 ))
             }
             is ApiResult.Error -> Result.failure(Exception(result.message))
@@ -624,6 +625,36 @@ class UserRepository @Inject constructor(
     }
 
     /**
+     * Block a user.
+     */
+    suspend fun blockUser(userId: String): Result<Boolean> {
+        return when (val result = safeApiCall { api.blockUser(userId) }) {
+            is ApiResult.Success -> Result.success(result.data.isBlocked)
+            is ApiResult.Error -> Result.failure(Exception(result.message))
+        }
+    }
+
+    /**
+     * Unblock a user.
+     */
+    suspend fun unblockUser(userId: String): Result<Boolean> {
+        return when (val result = safeApiCall { api.unblockUser(userId) }) {
+            is ApiResult.Success -> Result.success(result.data.isBlocked)
+            is ApiResult.Error -> Result.failure(Exception(result.message))
+        }
+    }
+
+    /**
+     * Get the authenticated user's blocked users (newest first).
+     */
+    suspend fun getBlockedUsers(): Result<List<app.desperse.data.dto.response.BlockedUser>> {
+        return when (val result = safeApiCall { api.getBlockedUsers() }) {
+            is ApiResult.Success -> Result.success(result.data.users)
+            is ApiResult.Error -> Result.failure(Exception(result.message))
+        }
+    }
+
+    /**
      * Get user's activity feed (own user only).
      */
     suspend fun getUserActivity(cursor: String? = null, limit: Int = 50): Result<ActivityData> {
@@ -654,7 +685,8 @@ data class ProfileData(
     val followersCount: Int,
     val followingCount: Int,
     val collectorsCount: Int,
-    val isFollowing: Boolean
+    val isFollowing: Boolean,
+    val isBlocked: Boolean = false
 )
 
 /**

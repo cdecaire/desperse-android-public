@@ -56,6 +56,8 @@ data class ProfileUiState(
     val collectorsCount: Int = 0,
     val isFollowing: Boolean = false,
     val isOwnProfile: Boolean = false,
+    val isBlocked: Boolean = false,
+    val isBlockLoading: Boolean = false,
     // Posts tab
     val posts: List<Post> = emptyList(),
     val postsHasMore: Boolean = false,
@@ -139,7 +141,19 @@ class ProfileViewModel @Inject constructor(
         loadProfile()
         observePostUpdates()
         observeFollowUpdates()
+        observeBlockUpdates()
         observeCurrentUserUpdates()
+    }
+
+    private fun observeBlockUpdates() {
+        viewModelScope.launch {
+            postUpdateManager.blockUpdates.collect { update ->
+                val current = _uiState.value.user ?: return@collect
+                if (current.id == update.userId) {
+                    _uiState.update { it.copy(isBlocked = update.isBlocked) }
+                }
+            }
+        }
     }
 
     private fun loadProfile() {
@@ -170,12 +184,16 @@ class ProfileViewModel @Inject constructor(
                         followingCount = profileData.followingCount,
                         collectorsCount = profileData.collectorsCount,
                         isFollowing = profileData.isFollowing,
+                        isBlocked = profileData.isBlocked,
                         isOwnProfile = isOwnProfile,
                         error = null
                     ) }
 
-                    // Load posts after profile is loaded
-                    loadPosts(profileSlug)
+                    // Skip post loading when this user is blocked — server zeroes stats
+                    // and post lists return empty anyway.
+                    if (!profileData.isBlocked) {
+                        loadPosts(profileSlug)
+                    }
                 }
                 .onFailure { error ->
                     _uiState.update { it.copy(
@@ -336,6 +354,7 @@ class ProfileViewModel @Inject constructor(
                             followingCount = profileData.followingCount,
                             collectorsCount = profileData.collectorsCount,
                             isFollowing = profileData.isFollowing,
+                            isBlocked = profileData.isBlocked,
                             isOwnProfile = isOwnProfile
                         ) }
                     }
@@ -401,6 +420,48 @@ class ProfileViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    fun blockUser() {
+        val state = _uiState.value
+        if (state.isBlockLoading || state.isOwnProfile) return
+        val user = state.user ?: return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBlockLoading = true) }
+            userRepository.blockUser(user.id)
+                .onSuccess { isBlocked ->
+                    _uiState.update { it.copy(isBlocked = isBlocked, isBlockLoading = false) }
+                    postUpdateManager.emitBlockUpdate(user.id, isBlocked = true)
+                    toastManager.showSuccess("Blocked @${user.slug}")
+                }
+                .onFailure { error ->
+                    _uiState.update { it.copy(isBlockLoading = false) }
+                    toastManager.showError(error.message ?: "Failed to block user")
+                }
+        }
+    }
+
+    fun unblockUser() {
+        val state = _uiState.value
+        if (state.isBlockLoading || state.isOwnProfile) return
+        val user = state.user ?: return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isBlockLoading = true) }
+            userRepository.unblockUser(user.id)
+                .onSuccess {
+                    postUpdateManager.emitBlockUpdate(user.id, isBlocked = false)
+                    toastManager.showInfo("Unblocked @${user.slug}")
+                    _uiState.update { it.copy(isBlocked = false, isBlockLoading = false) }
+                    // Refetch profile so stats / bio / tabs populate.
+                    loadProfile()
+                }
+                .onFailure { error ->
+                    _uiState.update { it.copy(isBlockLoading = false) }
+                    toastManager.showError(error.message ?: "Failed to unblock user")
+                }
         }
     }
 

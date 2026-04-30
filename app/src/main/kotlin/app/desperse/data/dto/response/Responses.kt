@@ -41,7 +41,8 @@ data class ProfileResult(
     val followersCount: Int = 0,
     val followingCount: Int = 0,
     val collectorsCount: Int = 0,
-    val isFollowing: Boolean = false
+    val isFollowing: Boolean = false,
+    val isBlocked: Boolean = false
 )
 
 @Serializable
@@ -131,6 +132,24 @@ data class CollectionStatusResult(
 @Serializable
 data class FollowResult(
     val isFollowing: Boolean
+)
+
+@Serializable
+data class UserBlockResult(
+    val isBlocked: Boolean
+)
+
+@Serializable
+data class BlockedUsersResult(
+    val users: List<BlockedUser>
+)
+
+@Serializable
+data class BlockedUser(
+    val id: String,
+    val slug: String,
+    val displayName: String? = null,
+    val avatarUrl: String? = null
 )
 
 @Serializable

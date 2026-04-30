@@ -81,6 +81,7 @@ fun PostCard(
     onCollectClick: () -> Unit = {},
     onShareClick: () -> Unit = {},
     onReport: () -> Unit = {},
+    onBlock: () -> Unit = {},
     onEditPost: () -> Unit = {},
     onDeletePost: () -> Unit = {},
     isOwnPost: Boolean = false,
@@ -101,6 +102,7 @@ fun PostCard(
             onUserClick = onUserClick,
             onPostClick = onClick,
             onReport = onReport,
+            onBlock = onBlock,
             onEditPost = onEditPost,
             onDeletePost = onDeletePost,
             isOwnPost = isOwnPost,
@@ -189,6 +191,7 @@ private fun PostCardHeader(
     onUserClick: () -> Unit,
     onPostClick: () -> Unit,
     onReport: () -> Unit,
+    onBlock: () -> Unit = {},
     onEditPost: () -> Unit = {},
     onDeletePost: () -> Unit = {},
     isOwnPost: Boolean = false,
@@ -318,6 +321,10 @@ private fun PostCardHeader(
             onReport = {
                 showMenu = false
                 onReport()
+            },
+            onBlock = {
+                showMenu = false
+                onBlock()
             },
             onEditPost = {
                 showMenu = false

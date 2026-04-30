@@ -714,6 +714,20 @@ class PostDetailViewModel @Inject constructor(
             }
     }
 
+    fun blockUser(userId: String, displayName: String, onBlocked: () -> Unit = {}) {
+        viewModelScope.launch {
+            userRepository.blockUser(userId)
+                .onSuccess {
+                    postUpdateManager.emitBlockUpdate(userId, isBlocked = true)
+                    toastManager.showSuccess("Blocked @$displayName")
+                    onBlocked()
+                }
+                .onFailure { error ->
+                    toastManager.showError(error.message ?: "Failed to block user")
+                }
+        }
+    }
+
     fun deletePost(onDeleted: () -> Unit = {}) {
         val postId = _uiState.value.post?.id ?: return
         viewModelScope.launch {

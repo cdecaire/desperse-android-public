@@ -154,6 +154,20 @@ interface DesperseApi {
         @Query("limit") limit: Int = 50
     ): Response<ApiEnvelope<FollowListResult>>
 
+    // === Block (User-level) ===
+    @POST("api/v1/users/{id}/block")
+    suspend fun blockUser(
+        @Path("id") userId: String
+    ): Response<ApiEnvelope<UserBlockResult>>
+
+    @DELETE("api/v1/users/{id}/block")
+    suspend fun unblockUser(
+        @Path("id") userId: String
+    ): Response<ApiEnvelope<UserBlockResult>>
+
+    @GET("api/v1/users/me/blocked")
+    suspend fun getBlockedUsers(): Response<ApiEnvelope<BlockedUsersResult>>
+
     // === Activity (own user only) ===
     @GET("api/v1/users/me/activity")
     suspend fun getUserActivity(

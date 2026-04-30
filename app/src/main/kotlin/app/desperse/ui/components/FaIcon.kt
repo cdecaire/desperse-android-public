@@ -88,6 +88,7 @@ object FaIcons {
     const val Bookmark = "\uf02e"
     const val BookmarkSolid = "\uf02e"
     const val Flag = "\uf024"
+    const val Ban = "\uf05e"
     const val PaperPlane = "\uf1d8"
     const val Send = "\uf1d8"
     const val Reply = "\uf3e5"

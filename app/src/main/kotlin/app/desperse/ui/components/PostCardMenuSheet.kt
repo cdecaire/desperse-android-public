@@ -65,6 +65,7 @@ fun PostCardMenuSheet(
     onDismiss: () -> Unit,
     onGoToPost: () -> Unit,
     onReport: () -> Unit = {},
+    onBlock: () -> Unit = {},
     onEditPost: () -> Unit = {},
     onDeletePost: () -> Unit = {},
     /** Hide "Go to post" option (useful on post detail pages) */
@@ -274,8 +275,18 @@ fun PostCardMenuSheet(
                     )
                 }
 
-                // Report post (other people's posts)
+                // Block user + Report post (other people's posts)
                 if (!isOwnPost) {
+                    val blockLabel = remember(post.user.slug) { "Block @${post.user.slug}" }
+                    SheetMenuItem(
+                        icon = FaIcons.Ban,
+                        label = blockLabel,
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = {
+                            onDismiss()
+                            onBlock()
+                        }
+                    )
                     SheetMenuItem(
                         icon = FaIcons.Flag,
                         label = "Report post",

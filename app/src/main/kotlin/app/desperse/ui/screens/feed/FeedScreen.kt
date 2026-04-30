@@ -152,6 +152,11 @@ fun FeedScreen(
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var deletePostId by remember { mutableStateOf("") }
 
+    // Block confirmation state
+    var showBlockConfirmation by remember { mutableStateOf(false) }
+    var blockUserId by remember { mutableStateOf("") }
+    var blockUserDisplayName by remember { mutableStateOf("") }
+
     // Comment sheet state
     var showCommentSheet by remember { mutableStateOf(false) }
     var reportContentType by remember { mutableStateOf("post") }
@@ -253,6 +258,34 @@ fun FeedScreen(
             },
             viewModel = commentSheetViewModel
         )
+
+        // Block confirmation dialog
+        if (showBlockConfirmation) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showBlockConfirmation = false },
+                title = { Text("Block @$blockUserDisplayName?") },
+                text = { Text("They won't be able to find your profile or posts, and you won't see theirs. They won't be notified.") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            viewModel.blockUser(blockUserId, blockUserDisplayName)
+                            showBlockConfirmation = false
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) { Text("Block") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { showBlockConfirmation = false }
+                    ) { Text("Cancel") }
+                },
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // Delete confirmation dialog
         if (showDeleteConfirmation) {
@@ -375,6 +408,13 @@ fun FeedScreen(
                                     showReportSheet = true
                                 }
                             }
+                            val onBlockStable = remember(post.user.id, post.user.slug) {
+                                {
+                                    blockUserId = post.user.id
+                                    blockUserDisplayName = post.user.slug
+                                    showBlockConfirmation = true
+                                }
+                            }
                             val onEditStable = remember(post.id) { { onEditPost(post.id) } }
                             val onDeleteStable = remember(post.id) {
                                 {
@@ -407,6 +447,7 @@ fun FeedScreen(
                                 onCommentClick = onCommentClickStable,
                                 onCollectClick = onCollectClickStable,
                                 onReport = onReportStable,
+                                onBlock = onBlockStable,
                                 onEditPost = onEditStable,
                                 onDeletePost = onDeleteStable,
                                 isOwnPost = isOwnPost,

@@ -83,6 +83,12 @@ private val accountSettings = listOf(
         description = "Control who can message you"
     ),
     SettingsItemData(
+        route = "settings/blocked",
+        label = "Blocked Accounts",
+        icon = FaIcons.Ban,
+        description = "Manage people you've blocked"
+    ),
+    SettingsItemData(
         route = "settings/copyright",
         label = "Copyright & Licensing",
         icon = FaIcons.Copyright,
