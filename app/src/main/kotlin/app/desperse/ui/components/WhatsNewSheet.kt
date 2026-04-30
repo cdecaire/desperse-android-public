@@ -39,6 +39,7 @@ val changelogs = mapOf(
         items = listOf(
             "Block users from post menus, profiles, and DMs",
             "Manage blocked accounts in Settings",
+            "Quicker access to post creation and notifications",
         )
     ),
     11 to WhatsNewContent(
