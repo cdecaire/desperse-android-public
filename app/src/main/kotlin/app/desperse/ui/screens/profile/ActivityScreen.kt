@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -46,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.desperse.data.dto.response.ActivityItem
 import app.desperse.ui.components.ButtonVariant
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.DesperseTextButton
 import app.desperse.ui.components.ActivityItemSkeleton
 import app.desperse.ui.components.EmptyState
@@ -94,9 +94,7 @@ fun ActivityScreen(
             TopAppBar(
                 title = { Text("Activity") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

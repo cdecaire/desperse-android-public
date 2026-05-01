@@ -25,6 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.desperse.core.preferences.MessagingPreferences
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.data.repository.MessageRepository
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
@@ -238,9 +239,7 @@ fun MessagingSettingsScreen(
             TopAppBar(
                 title = { Text("Messaging") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

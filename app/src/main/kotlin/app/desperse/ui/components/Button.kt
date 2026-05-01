@@ -344,6 +344,13 @@ fun DesperseIconButton(
     }
 }
 
+@Composable
+fun DesperseBackButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
+    }
+}
+
 /**
  * Icon button component (FontAwesome Icons)
  */

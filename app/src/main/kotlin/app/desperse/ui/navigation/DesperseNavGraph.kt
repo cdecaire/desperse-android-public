@@ -1088,13 +1088,12 @@ private fun DesperseBottomNav(
             // Messages, Profile
             bottomNavScreens.drop(2).forEach { screen ->
                 val isSelected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                val isMessages = screen == Screen.Messages
                 BottomNavItem(
                     icon = screen.icon,
                     label = screen.title,
                     isSelected = isSelected,
                     avatarUrl = if (screen == Screen.Profile) currentUser?.avatarUrl else null,
-                    showBadge = if (isMessages) hasUnreadMessages else false,
+                    showBadge = screen == Screen.Messages && hasUnreadMessages,
                     onClick = { onNavigate(screen.route) }
                 )
             }

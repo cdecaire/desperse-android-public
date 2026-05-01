@@ -60,6 +60,7 @@ import app.desperse.data.dto.response.NotificationItem
 import app.desperse.ui.components.AvatarSize
 import app.desperse.ui.components.ButtonVariant
 import app.desperse.ui.components.DesperseAvatar
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.DesperseTextButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
@@ -140,9 +141,7 @@ fun NotificationsScreen(
                 },
                 navigationIcon = {
                     if (onBack != null) {
-                        IconButton(onClick = onBack) {
-                            FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                        }
+                        DesperseBackButton(onClick = onBack)
                     }
                 },
                 actions = {

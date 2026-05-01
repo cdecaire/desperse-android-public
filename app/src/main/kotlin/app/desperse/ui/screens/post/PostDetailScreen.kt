@@ -31,6 +31,7 @@ import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
 import app.desperse.ui.components.ButtonVariant
 import app.desperse.ui.components.CommentSheet
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
@@ -138,9 +139,7 @@ fun PostDetailScreen(
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 actions = {
                     if (post != null) {

@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import android.widget.Toast
 import app.desperse.core.util.openInAppBrowser
+import app.desperse.ui.components.DesperseBackButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -692,9 +693,7 @@ fun WalletsSettingsScreen(
             TopAppBar(
                 title = { Text("Wallets & Linked") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

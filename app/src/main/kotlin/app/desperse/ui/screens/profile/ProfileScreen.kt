@@ -69,6 +69,7 @@ import app.desperse.core.util.openInAppBrowser
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.ui.components.ButtonVariant
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.GeometricAvatar
 import app.desperse.ui.components.GeometricBanner
@@ -149,9 +150,7 @@ fun ProfileScreen(
                 },
                 navigationIcon = {
                     if (onBack != null) {
-                        IconButton(onClick = onBack) {
-                            FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                        }
+                        DesperseBackButton(onClick = onBack)
                     }
                 },
                 actions = {

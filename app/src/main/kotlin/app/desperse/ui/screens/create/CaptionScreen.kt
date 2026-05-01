@@ -43,6 +43,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.MentionTextField
@@ -82,9 +83,7 @@ fun CaptionScreen(
                     )
                 },
                 navigationIcon = {
-                    androidx.compose.material3.IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.desperse.data.dto.response.MessageResponse
 import app.desperse.ui.components.AvatarSize
 import app.desperse.ui.components.DesperseAvatar
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
@@ -319,9 +320,7 @@ private fun ConversationTopBar(
             }
         },
         navigationIcon = {
-            IconButton(onClick = onBack) {
-                FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-            }
+            DesperseBackButton(onClick = onBack)
         },
         actions = {
             IconButton(onClick = onMenuClick) {

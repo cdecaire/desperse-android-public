@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,6 +43,7 @@ import androidx.compose.runtime.setValue
 import app.desperse.data.NotificationCounters
 import app.desperse.ui.components.NewPostsToast
 import app.desperse.ui.components.NotificationBadge
+import app.desperse.ui.components.UnreadDot
 import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -560,37 +560,20 @@ private fun FeedTopBar(
                 )
             },
             actions = {
-                androidx.compose.ui.layout.Layout(
-                    content = {
-                        DesperseFaIconButton(
-                            icon = FaIcons.Bell,
-                            onClick = onNotificationsClick,
-                            contentDescription = "Notifications",
-                            variant = ButtonVariant.Ghost,
-                            style = FaIconStyle.Regular
+                Box {
+                    DesperseFaIconButton(
+                        icon = FaIcons.Bell,
+                        onClick = onNotificationsClick,
+                        contentDescription = "Notifications",
+                        variant = ButtonVariant.Ghost,
+                        style = FaIconStyle.Regular
+                    )
+                    if (hasUnreadNotifications) {
+                        UnreadDot(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 6.dp, end = 6.dp)
                         )
-                        if (hasUnreadNotifications) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(
-                                        color = MaterialTheme.colorScheme.error,
-                                        shape = CircleShape
-                                    )
-                            )
-                        }
-                    }
-                ) { measurables, constraints ->
-                    val buttonPlaceable = measurables[0].measure(constraints)
-                    val badgePlaceable = measurables.getOrNull(1)?.measure(constraints)
-                    layout(buttonPlaceable.width, buttonPlaceable.height) {
-                        buttonPlaceable.placeRelative(0, 0)
-                        if (badgePlaceable != null) {
-                            badgePlaceable.placeRelative(
-                                buttonPlaceable.width - badgePlaceable.width - 6,
-                                6
-                            )
-                        }
                     }
                 }
             },

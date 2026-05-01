@@ -116,9 +116,10 @@ class FeedViewModel @Inject constructor(
                     }
                     // Also purge from all tab caches so switching tabs doesn't resurface them
                     tabCaches.entries.forEach { (key, cache) ->
-                        tabCaches[key] = cache.copy(
-                            posts = cache.posts.filter { it.user.id != update.userId }
-                        )
+                        val filtered = cache.posts.filter { it.user.id != update.userId }
+                        if (filtered.size != cache.posts.size) {
+                            tabCaches[key] = cache.copy(posts = filtered)
+                        }
                     }
                 } else {
                     // Unblock — refetch to surface their posts again

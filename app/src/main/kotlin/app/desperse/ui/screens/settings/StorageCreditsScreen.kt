@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import app.desperse.core.arweave.ArweaveUtils
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.core.arweave.CreditApproval
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
@@ -60,9 +61,7 @@ fun StorageCreditsScreen(
             TopAppBar(
                 title = { Text("Storage Credits") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

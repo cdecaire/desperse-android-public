@@ -14,6 +14,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.desperse.core.network.ApiResult
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.core.network.DesperseApi
 import app.desperse.core.network.safeApiCall
 import app.desperse.core.preferences.AppPreferences
@@ -89,9 +90,7 @@ fun AppSettingsScreen(
             TopAppBar(
                 title = { Text("App Settings") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

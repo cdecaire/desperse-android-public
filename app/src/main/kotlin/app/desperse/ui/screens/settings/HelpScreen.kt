@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.desperse.core.util.openInAppBrowser
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
@@ -37,9 +38,7 @@ fun HelpScreen(
             TopAppBar(
                 title = { Text("Help") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

@@ -32,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.desperse.data.repository.UserRepository
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
@@ -338,9 +339,7 @@ fun ProfileInfoScreen(
             TopAppBar(
                 title = { Text("Profile Info") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                    }
+                    DesperseBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background

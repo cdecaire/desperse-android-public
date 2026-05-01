@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.screens.create.components.AttachmentSheet
@@ -220,9 +221,7 @@ fun CreateScreen(
                 },
                 navigationIcon = {
                     if (onBack != null) {
-                        androidx.compose.material3.IconButton(onClick = onBack) {
-                            FaIcon(FaIcons.ArrowLeft, size = 20.dp)
-                        }
+                        DesperseBackButton(onClick = onBack)
                     } else {
                         androidx.compose.material3.IconButton(onClick = onClose) {
                             FaIcon(FaIcons.Xmark, size = 20.dp)
