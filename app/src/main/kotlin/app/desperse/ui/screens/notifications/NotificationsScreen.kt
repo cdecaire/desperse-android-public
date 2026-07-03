@@ -4,7 +4,6 @@ import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.LoadingMoreIndicator
 import app.desperse.ui.components.NotificationItemSkeleton
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -180,10 +179,9 @@ fun NotificationsScreen(
     ) { padding ->
         when {
             uiState.isLoading && uiState.notifications.isEmpty() -> {
-                val brush = rememberShimmerBrush()
                 Column(modifier = Modifier.padding(padding)) {
                     repeat(8) {
-                        NotificationItemSkeleton(brush = brush)
+                        NotificationItemSkeleton()
                     }
                 }
             }

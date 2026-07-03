@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,6 +70,7 @@ import app.desperse.core.util.openInAppBrowser
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.ui.components.ButtonVariant
+import app.desperse.ui.components.RoleBadgePill
 import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.DesperseFaIconButton
 import app.desperse.ui.components.GeometricAvatar
@@ -93,6 +95,8 @@ import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import app.desperse.ui.haptics.HapticEvent
+import app.desperse.ui.haptics.rememberDesperseHaptics
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +122,7 @@ fun ProfileScreen(
     var showProfileMenu by remember { mutableStateOf(false) }
     var showBlockConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val haptics = rememberDesperseHaptics()
 
     // Coroutine scope for showing snackbar messages
     val coroutineScope = rememberCoroutineScope()
@@ -181,7 +186,10 @@ fun ProfileScreen(
     ) { padding ->
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
-            onRefresh = { viewModel.refresh() },
+            onRefresh = {
+                haptics.perform(HapticEvent.PullToRefresh)
+                viewModel.refresh()
+            },
             state = pullRefreshState,
             modifier = Modifier
                 .fillMaxSize()
@@ -189,8 +197,7 @@ fun ProfileScreen(
         ) {
             when {
                 uiState.isLoading -> {
-                    val shimmerBrush = app.desperse.ui.components.rememberShimmerBrush()
-                    app.desperse.ui.components.ProfileSkeleton(brush = shimmerBrush)
+                    app.desperse.ui.components.ProfileSkeleton()
                 }
 
                 uiState.error != null -> {
@@ -634,12 +641,19 @@ private fun ProfileHeader(
             Spacer(modifier = Modifier.height(DesperseSpacing.md))
 
             // Name and handle
-            Text(
-                text = user.displayName ?: user.slug,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.sm)
+            ) {
+                Text(
+                    text = user.displayName ?: user.slug,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                RoleBadgePill(role = user.role)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "@${user.slug}",
@@ -688,7 +702,9 @@ private fun ProfileHeader(
                     if (userLink != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable { onExternalLinkClick(userLink) }
+                            modifier = Modifier
+                                .clickable { onExternalLinkClick(userLink) }
+                                .heightIn(min = 48.dp)
                         ) {
                             FaIcon(
                                 icon = FaIcons.Link,
@@ -711,9 +727,11 @@ private fun ProfileHeader(
                     if (userTwitter != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable {
-                                onSocialLinkClick("https://x.com/${user.twitterUsername}")
-                            }
+                            modifier = Modifier
+                                .clickable {
+                                    onSocialLinkClick("https://x.com/${user.twitterUsername}")
+                                }
+                                .heightIn(min = 48.dp)
                         ) {
                             FaIcon(
                                 icon = FaIcons.X,
@@ -736,9 +754,11 @@ private fun ProfileHeader(
                     if (userInstagram != null) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable {
-                                onSocialLinkClick("https://instagram.com/${user.instagramUsername}")
-                            }
+                            modifier = Modifier
+                                .clickable {
+                                    onSocialLinkClick("https://instagram.com/${user.instagramUsername}")
+                                }
+                                .heightIn(min = 48.dp)
                         ) {
                             FaIcon(
                                 icon = FaIcons.Instagram,
@@ -876,7 +896,9 @@ private fun ProfileTab(
     )
 
     Column(
-        modifier = modifier.clickable { onClick() },
+        modifier = modifier
+            .clickable { onClick() }
+            .heightIn(min = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(

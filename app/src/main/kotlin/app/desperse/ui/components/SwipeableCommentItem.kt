@@ -115,7 +115,12 @@ private fun CommentContent(
             .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm)
     ) {
         // Avatar
-        Box(modifier = Modifier.clickable(onClick = onUserClick)) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clickable(onClick = onUserClick),
+            contentAlignment = Alignment.Center
+        ) {
             DesperseAvatar(
                 imageUrl = comment.user.avatarUrl,
                 contentDescription = comment.user.displayName ?: comment.user.slug,
@@ -135,8 +140,12 @@ private fun CommentContent(
                     text = comment.user.displayName ?: comment.user.slug,
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clickable(onClick = onUserClick)
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .wrapContentHeight()
+                        .clickable(onClick = onUserClick)
                 )
+                RoleBadgeInline(role = comment.user.role, size = 12.dp)
                 Text(
                     text = "·",
                     style = MaterialTheme.typography.bodySmall,

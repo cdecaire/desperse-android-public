@@ -132,16 +132,16 @@ fun DesperseButton(
                 contentPadding = contentPadding,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = toneDestructive(),
-                    contentColor = Color.White,
+                    contentColor = DesperseColors.Zinc50,
                     disabledContainerColor = toneDestructive().copy(alpha = 0.5f),
-                    disabledContentColor = Color.White.copy(alpha = 0.5f)
+                    disabledContentColor = DesperseColors.Zinc50.copy(alpha = 0.5f)
                 )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = Color.White
+                        color = DesperseColors.Zinc50
                     )
                 } else {
                     content()

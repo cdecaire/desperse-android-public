@@ -50,7 +50,6 @@ import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.LoadingMoreIndicator
 import app.desperse.ui.components.UserItemSkeleton
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.theme.DesperseSpacing
@@ -113,10 +112,9 @@ fun FollowListScreen(
     ) { padding ->
         when {
             uiState.isLoading -> {
-                val brush = rememberShimmerBrush()
                 Column(modifier = Modifier.padding(padding)) {
                     repeat(8) {
-                        UserItemSkeleton(brush = brush)
+                        UserItemSkeleton()
                     }
                 }
             }

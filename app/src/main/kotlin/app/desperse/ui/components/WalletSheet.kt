@@ -289,7 +289,9 @@ private fun WalletTab(
     onClick: () -> Unit
 ) {
     Column(
-        modifier = Modifier.clickable { onClick() },
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -624,6 +626,7 @@ private fun LayoutToggleButton(
 ) {
     Box(
         modifier = Modifier
+            .size(48.dp)
             .clip(RoundedCornerShape(6.dp))
             .then(
                 if (isSelected) {

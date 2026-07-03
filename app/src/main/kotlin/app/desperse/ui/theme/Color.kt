@@ -5,21 +5,21 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * Desperse color palette - matches web exactly
- * Based on Tailwind CSS color system
+ * Authored in OKLCH; values converted to sRGB at build time.
  */
 object DesperseColors {
-    // Zinc (Neutral) palette
-    val Zinc50 = Color(0xFFFAFAFA)
-    val Zinc100 = Color(0xFFF4F4F5)
-    val Zinc200 = Color(0xFFE4E4E7)
-    val Zinc300 = Color(0xFFD4D4D8)
-    val Zinc400 = Color(0xFFA1A1AA)
-    val Zinc500 = Color(0xFF71717A)
-    val Zinc600 = Color(0xFF52525B)
-    val Zinc700 = Color(0xFF3F3F46)
-    val Zinc800 = Color(0xFF27272A)
-    val Zinc900 = Color(0xFF18181B)
-    val Zinc950 = Color(0xFF09090B)
+    // Zinc (Neutral) palette - hue 264°
+    val Zinc50 = Color(0xFFF5F6F7)
+    val Zinc100 = Color(0xFFEAEBED)
+    val Zinc200 = Color(0xFFD6D7DA)
+    val Zinc300 = Color(0xFFB9BABD)
+    val Zinc400 = Color(0xFF97989B)
+    val Zinc500 = Color(0xFF797A7D)
+    val Zinc600 = Color(0xFF5C5E60)
+    val Zinc700 = Color(0xFF444547)
+    val Zinc800 = Color(0xFF2D2E30)
+    val Zinc900 = Color(0xFF1C1D1E)
+    val Zinc950 = Color(0xFF0A0B0C)
 
     // Semantic colors (dark mode - Desperse is always dark)
     val Background = Zinc950
@@ -33,32 +33,38 @@ object DesperseColors {
 
     // Ring/focus colors
     val Ring = Zinc500
-
-    // Legacy aliases (for compatibility)
-    val Highlight = Color(0xFF6366F1)       // Indigo-500 - deprecated, use tones
-    val HighlightDark = Color(0xFF4F46E5)   // Indigo-600 - deprecated, use tones
 }
 
 /**
  * Tone colors for semantic meaning
- * Light and dark variants as per style guide
+ * Light values come from re-anchored palette steps; dark values are
+ * dedicated chroma-boosted overrides for vibrancy on dark canvases.
  */
 object DesperseTones {
-    // Light mode tones
-    val StandardLight = Color(0xFF00CBA2)      // caribbean-green-500
-    val CollectibleLight = Color(0xFF6221FF)   // blue-gem-600
-    val EditionLight = Color(0xFF8D04EC)       // purple-heart-700
-    val WarningLight = Color(0xFFFF8000)       // flush-orange-600
-    val InfoLight = Color(0xFF3792FA)          // azure-radiance-500
-    val DestructiveLight = Color(0xFFFF003C)   // torch-red-600
+    // Light mode tones (re-anchored to clear WCAG AA on white)
+    val StandardLight = Color(0xFF00694F)      // caribbean-green-600
+    val CollectibleLight = Color(0xFF5D1AE8)   // blue-gem-600
+    val EditionLight = Color(0xFF7400AB)       // purple-heart-700
+    val WarningLight = Color(0xFF8A3A00)       // flush-orange-700
+    val InfoLight = Color(0xFF0065E2)          // azure-radiance-600
+    val DestructiveLight = Color(0xFFCE0028)   // torch-red-600
 
-    // Dark mode tones
-    val StandardDark = Color(0xFF27E4B8)       // caribbean-green-400
-    val CollectibleDark = Color(0xFF947BFF)    // blue-gem-400
-    val EditionDark = Color(0xFFC86FFF)        // purple-heart-400
-    val WarningDark = Color(0xFFFF980A)        // flush-orange-500
-    val InfoDark = Color(0xFF5DB3FD)           // azure-radiance-400
-    val DestructiveDark = Color(0xFFFF577F)    // torch-red-400
+    // Dark-tuned tone overrides
+    val ToneEditionDark = Color(0xFFCA11F4)     // oklch(62% 0.295 318) — sRGB-clamped at magenta boundary
+    val ToneCollectibleDark = Color(0xFF9B87FF) // oklch(72% 0.225 285)
+    val ToneStandardDark = Color(0xFF00DF9E)    // oklch(78% 0.205 168)
+    val ToneInfoDark = Color(0xFF00BFFF)        // oklch(76% 0.165 235)
+    val ToneWarningDark = Color(0xFFFFAB39)     // oklch(82% 0.165 65)
+    val HighlightDarkTone = Color(0xFFE348FF)   // oklch(70% 0.285 318) — sRGB-clamped
+    val DestructiveDarkTone = Color(0xFFFF494B) // oklch(68% 0.225 25)
+
+    // Dark mode tone references (use the dark-tuned overrides)
+    val StandardDark = ToneStandardDark
+    val CollectibleDark = ToneCollectibleDark
+    val EditionDark = ToneEditionDark
+    val WarningDark = ToneWarningDark
+    val InfoDark = ToneInfoDark
+    val DestructiveDark = DestructiveDarkTone
 
     // Legacy static references (dark mode defaults for compatibility)
     val Standard = StandardDark
@@ -68,90 +74,90 @@ object DesperseTones {
     val Info = InfoDark
     val Destructive = DestructiveDark
     val Like = DestructiveDark
-    val Success = StandardDark  // Success uses the caribbean green (standard) tone
+    val Success = StandardDark
 }
 
 /**
  * Full color palettes for when you need specific shades
  */
 object DespersePalette {
-    // Torch Red (Destructive)
-    val TorchRed50 = Color(0xFFFFF0F4)
-    val TorchRed100 = Color(0xFFFFDDE5)
-    val TorchRed200 = Color(0xFFFFC0CF)
-    val TorchRed300 = Color(0xFFFF94AD)
-    val TorchRed400 = Color(0xFFFF577F)
-    val TorchRed500 = Color(0xFFFF2357)
-    val TorchRed600 = Color(0xFFFF003C)
-    val TorchRed700 = Color(0xFFD70033)
-    val TorchRed800 = Color(0xFFB1032C)
-    val TorchRed900 = Color(0xFF920A2A)
-    val TorchRed950 = Color(0xFF500013)
+    // Torch Red (Destructive) - hue 22°
+    val TorchRed50 = Color(0xFFFFF3F2)
+    val TorchRed100 = Color(0xFFFEE4E3)
+    val TorchRed200 = Color(0xFFFDC9C6)
+    val TorchRed300 = Color(0xFFFD9B98)
+    val TorchRed400 = Color(0xFFF75C61)
+    val TorchRed500 = Color(0xFFEC1439)
+    val TorchRed600 = Color(0xFFCE0028)
+    val TorchRed700 = Color(0xFFA5001E)
+    val TorchRed800 = Color(0xFF790014)
+    val TorchRed900 = Color(0xFF52020D)
+    val TorchRed950 = Color(0xFF2B0003)
 
-    // Blue Gem (Collectible)
-    val BlueGem50 = Color(0xFFF3F1FF)
-    val BlueGem100 = Color(0xFFE9E6FF)
-    val BlueGem200 = Color(0xFFD5D0FF)
-    val BlueGem300 = Color(0xFFB7ABFF)
-    val BlueGem400 = Color(0xFF947BFF)
-    val BlueGem500 = Color(0xFF7346FF)
-    val BlueGem600 = Color(0xFF6221FF)
-    val BlueGem700 = Color(0xFF540FF2)
-    val BlueGem800 = Color(0xFF450CCB)
-    val BlueGem900 = Color(0xFF3A0CA3)
-    val BlueGem950 = Color(0xFF220471)
+    // Blue Gem (Collectible) - hue 285°
+    val BlueGem50 = Color(0xFFF4F5FF)
+    val BlueGem100 = Color(0xFFE8E9FF)
+    val BlueGem200 = Color(0xFFD2D2FF)
+    val BlueGem300 = Color(0xFFB2AEFF)
+    val BlueGem400 = Color(0xFF8F7EFF)
+    val BlueGem500 = Color(0xFF764AFF)
+    val BlueGem600 = Color(0xFF5D1AE8)
+    val BlueGem700 = Color(0xFF480DB8)
+    val BlueGem800 = Color(0xFF310184)
+    val BlueGem900 = Color(0xFF1D0057)
+    val BlueGem950 = Color(0xFF0B002E)
 
-    // Purple Heart (Edition/Accent)
-    val PurpleHeart50 = Color(0xFFFBF3FF)
-    val PurpleHeart100 = Color(0xFFF4E4FF)
-    val PurpleHeart200 = Color(0xFFECCEFF)
-    val PurpleHeart300 = Color(0xFFDDA7FF)
-    val PurpleHeart400 = Color(0xFFC86FFF)
-    val PurpleHeart500 = Color(0xFFB439FF)
-    val PurpleHeart600 = Color(0xFFA213FF)
-    val PurpleHeart700 = Color(0xFF8D04EC)
-    val PurpleHeart800 = Color(0xFF7209B7)
-    val PurpleHeart900 = Color(0xFF62099A)
-    val PurpleHeart950 = Color(0xFF430074)
+    // Purple Heart (Edition/Accent) - hue 309°
+    val PurpleHeart50 = Color(0xFFF8F3FD)
+    val PurpleHeart100 = Color(0xFFF1E6FB)
+    val PurpleHeart200 = Color(0xFFE4CCF9)
+    val PurpleHeart300 = Color(0xFFD4A2FC)
+    val PurpleHeart400 = Color(0xFFBF69FA)
+    val PurpleHeart500 = Color(0xFFB02EF8)
+    val PurpleHeart600 = Color(0xFF9700DC)
+    val PurpleHeart700 = Color(0xFF7400AB)
+    val PurpleHeart800 = Color(0xFF500078)
+    val PurpleHeart900 = Color(0xFF32004E)
+    val PurpleHeart950 = Color(0xFF160027)
 
-    // Caribbean Green (Success)
-    val CaribbeanGreen50 = Color(0xFFEAFFF8)
-    val CaribbeanGreen100 = Color(0xFFCDFEEB)
-    val CaribbeanGreen200 = Color(0xFF9FFBDD)
-    val CaribbeanGreen300 = Color(0xFF61F4CD)
-    val CaribbeanGreen400 = Color(0xFF27E4B8)
-    val CaribbeanGreen500 = Color(0xFF00CBA2)
-    val CaribbeanGreen600 = Color(0xFF00A585)
-    val CaribbeanGreen700 = Color(0xFF00846D)
-    val CaribbeanGreen800 = Color(0xFF006858)
-    val CaribbeanGreen900 = Color(0xFF00554A)
-    val CaribbeanGreen950 = Color(0xFF00302A)
+    // Caribbean Green (Success) - hue 173°
+    val CaribbeanGreen50 = Color(0xFFEAFAF5)
+    val CaribbeanGreen100 = Color(0xFFD5F3E9)
+    val CaribbeanGreen200 = Color(0xFFA8E7D3)
+    val CaribbeanGreen300 = Color(0xFF5FD3B3)
+    val CaribbeanGreen400 = Color(0xFF00B390)
+    val CaribbeanGreen500 = Color(0xFF009373)
+    val CaribbeanGreen600 = Color(0xFF00694F)
+    val CaribbeanGreen700 = Color(0xFF00523D)
+    val CaribbeanGreen800 = Color(0xFF003A2A)
+    val CaribbeanGreen900 = Color(0xFF00251A)
+    val CaribbeanGreen950 = Color(0xFF001009)
 
-    // Flush Orange (Warning)
-    val FlushOrange50 = Color(0xFFFFFAEC)
-    val FlushOrange100 = Color(0xFFFFF4D3)
-    val FlushOrange200 = Color(0xFFFFE5A5)
-    val FlushOrange300 = Color(0xFFFFD16D)
-    val FlushOrange400 = Color(0xFFFFB232)
-    val FlushOrange500 = Color(0xFFFF980A)
-    val FlushOrange600 = Color(0xFFFF8000)
-    val FlushOrange700 = Color(0xFFCC5D02)
-    val FlushOrange800 = Color(0xFFA1480B)
-    val FlushOrange900 = Color(0xFF823D0C)
-    val FlushOrange950 = Color(0xFF461D04)
+    // Flush Orange (Warning) - hue 52°
+    val FlushOrange50 = Color(0xFFFFF3EB)
+    val FlushOrange100 = Color(0xFFFFE5D5)
+    val FlushOrange200 = Color(0xFFFFCAAA)
+    val FlushOrange300 = Color(0xFFFCA169)
+    val FlushOrange400 = Color(0xFFF58028)
+    val FlushOrange500 = Color(0xFFEB7000)
+    val FlushOrange600 = Color(0xFFB14D00)
+    val FlushOrange700 = Color(0xFF8A3A00)
+    val FlushOrange800 = Color(0xFF662800)
+    val FlushOrange900 = Color(0xFF461A00)
+    val FlushOrange950 = Color(0xFF230800)
 
-    // Azure Radiance (Info)
+    // Azure Radiance (Info) - hue 250°
     val AzureRadiance50 = Color(0xFFEFF7FF)
-    val AzureRadiance100 = Color(0xFFDAEDFF)
-    val AzureRadiance200 = Color(0xFFBEE1FF)
-    val AzureRadiance300 = Color(0xFF91CFFF)
-    val AzureRadiance400 = Color(0xFF5DB3FD)
-    val AzureRadiance500 = Color(0xFF3792FA)
-    val AzureRadiance600 = Color(0xFF2E7CF0)
-    val AzureRadiance700 = Color(0xFF195DDC)
-    val AzureRadiance800 = Color(0xFF1B4BB2)
-    val AzureRadiance900 = Color(0xFF1C438C)
-    val AzureRadiance950 = Color(0xFF162A55)
+    val AzureRadiance100 = Color(0xFFDDEDFF)
+    val AzureRadiance200 = Color(0xFFBADBFE)
+    val AzureRadiance300 = Color(0xFF80C0FF)
+    val AzureRadiance400 = Color(0xFF2A9CFF)
+    val AzureRadiance500 = Color(0xFF0080F9)
+    val AzureRadiance600 = Color(0xFF0065E2)
+    val AzureRadiance700 = Color(0xFF004BB4)
+    val AzureRadiance800 = Color(0xFF003483)
+    val AzureRadiance900 = Color(0xFF001F55)
+    val AzureRadiance950 = Color(0xFF000C2B)
 }
 
 /**

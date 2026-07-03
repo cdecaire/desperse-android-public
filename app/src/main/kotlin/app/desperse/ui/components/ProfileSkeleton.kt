@@ -1,6 +1,5 @@
 package app.desperse.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,29 +17,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import app.desperse.ui.theme.DesperseSpacing
 
-/**
- * Skeleton placeholder matching ProfileScreen layout.
- * Shows shimmer animation while profile data loads.
- */
 @Composable
 fun ProfileSkeleton(
-    brush: Brush,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        // Banner (160dp, matching ProfileHeader)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(160.dp)
-                .background(brush)
+                .shimmer()
         )
 
-        // Avatar + action icons row (offset to overlap banner)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -48,75 +39,67 @@ fun ProfileSkeleton(
                 .padding(horizontal = DesperseSpacing.lg),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Avatar circle (80dp with border)
             Box(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(brush)
+                    .shimmer()
             )
-            // Action icon placeholders
             Row(horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.xs)) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(brush)
+                        .shimmer()
                 )
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(brush)
+                        .shimmer()
                 )
             }
         }
 
-        // Name + handle + bio (pulled up since avatar overlaps)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset(y = (-28).dp)
                 .padding(horizontal = DesperseSpacing.lg)
         ) {
-            // Display name
             Box(
                 modifier = Modifier
                     .width(160.dp)
                     .height(20.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(brush)
+                    .shimmer()
             )
             Spacer(Modifier.height(8.dp))
-            // @handle
             Box(
                 modifier = Modifier
                     .width(100.dp)
                     .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(brush)
+                    .shimmer()
             )
             Spacer(Modifier.height(12.dp))
-            // Bio line 1
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(brush)
+                    .shimmer()
             )
             Spacer(Modifier.height(6.dp))
-            // Bio line 2
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.5f)
                     .height(14.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(brush)
+                    .shimmer()
             )
             Spacer(Modifier.height(16.dp))
 
-            // Stats row (followers, following, collectors)
             Row(horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.xl)) {
                 repeat(3) {
                     Column {
@@ -125,7 +108,7 @@ fun ProfileSkeleton(
                                 .width(32.dp)
                                 .height(16.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(brush)
+                                .shimmer()
                         )
                         Spacer(Modifier.height(4.dp))
                         Box(
@@ -133,14 +116,13 @@ fun ProfileSkeleton(
                                 .width(56.dp)
                                 .height(12.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(brush)
+                                .shimmer()
                         )
                     }
                 }
             }
         }
 
-        // Tabs placeholder
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -154,12 +136,11 @@ fun ProfileSkeleton(
                         .width(64.dp)
                         .height(14.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(brush)
+                        .shimmer()
                 )
             }
         }
 
-        // Grid placeholder (3x2 grid of squares)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -176,7 +157,7 @@ fun ProfileSkeleton(
                             modifier = Modifier
                                 .weight(1f)
                                 .aspectRatio(1f)
-                                .background(brush)
+                                .shimmer()
                         )
                     }
                 }

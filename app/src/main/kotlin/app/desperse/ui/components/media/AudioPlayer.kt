@@ -184,7 +184,7 @@ fun AudioPlayer(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.5f))
                         .clickable { isMuted = !isMuted },

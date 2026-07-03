@@ -15,6 +15,7 @@ import app.desperse.ui.components.DesperseBackButton
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
+import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.toneLike
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -187,10 +188,10 @@ fun SettingsScreen(
                     .padding(bottom = 16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = likeColor,
-                    contentColor = Color.White
+                    contentColor = DesperseColors.Zinc50
                 )
             ) {
-                FaIcon(FaIcons.ArrowRightFromBracket, size = 16.dp, tint = Color.White)
+                FaIcon(FaIcons.ArrowRightFromBracket, size = 16.dp, tint = DesperseColors.Zinc50)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Log Out")
             }

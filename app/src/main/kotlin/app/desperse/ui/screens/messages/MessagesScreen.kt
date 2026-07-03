@@ -3,7 +3,6 @@ package app.desperse.ui.screens.messages
 import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.ThreadItemSkeleton
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.util.formatRelativeTime
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -177,10 +176,9 @@ fun MessagesScreen(
         ) {
             when {
                 uiState.isLoading && uiState.threads.isEmpty() -> {
-                    val brush = rememberShimmerBrush()
                     Column(modifier = Modifier.fillMaxSize()) {
                         repeat(6) {
-                            ThreadItemSkeleton(brush = brush)
+                            ThreadItemSkeleton()
                         }
                     }
                 }

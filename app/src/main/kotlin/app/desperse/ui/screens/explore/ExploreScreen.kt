@@ -4,7 +4,7 @@ import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.LoadingMoreIndicator
 import app.desperse.ui.components.PostCardSkeleton
 import app.desperse.ui.components.SearchResultSkeleton
-import app.desperse.ui.components.rememberShimmerBrush
+import app.desperse.ui.components.shimmer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -224,8 +224,6 @@ fun ExploreScreen(
                 }
 
                 uiState.isLoading -> {
-                    val brush = rememberShimmerBrush()
-                    // Grid skeleton — 3 columns of placeholder tiles
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -237,7 +235,8 @@ fun ExploreScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(0.8f)
-                                    .background(brush, RoundedCornerShape(2.dp))
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .shimmer()
                             )
                         }
                     }
@@ -250,7 +249,8 @@ fun ExploreScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(0.8f)
-                                    .background(brush, RoundedCornerShape(2.dp))
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .shimmer()
                             )
                         }
                     }
@@ -511,10 +511,9 @@ private fun SearchResults(
     onReportPost: (Post) -> Unit
 ) {
     if (isSearching) {
-        val brush = rememberShimmerBrush()
         Column(modifier = Modifier.fillMaxWidth()) {
             repeat(4) {
-                SearchResultSkeleton(brush = brush)
+                SearchResultSkeleton()
             }
         }
         return

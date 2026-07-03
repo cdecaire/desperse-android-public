@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -100,7 +103,6 @@ import app.desperse.ui.screens.settings.SettingsScreen
 import app.desperse.ui.screens.settings.StorageCreditsScreen
 import app.desperse.ui.screens.settings.WalletsSettingsScreen
 import app.desperse.ui.components.PostCardSkeleton
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.WalletSheet
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.components.media.ImageContext
@@ -411,17 +413,18 @@ fun DesperseNavGraph(
     // Show loading while auth is initializing
     when (authState) {
         is AuthState.NotReady, is AuthState.Loading -> {
-            val shimmerBrush = rememberShimmerBrush()
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.systemBars),
                     userScrollEnabled = false
                 ) {
                     items(3) {
-                        PostCardSkeleton(brush = shimmerBrush)
+                        PostCardSkeleton()
                     }
                 }
             }
@@ -445,17 +448,18 @@ fun DesperseNavGraph(
     // Gate on backend bootstrap — don't show the main app until initAuth succeeds
     when (bootstrapState) {
         is BootstrapState.Idle, is BootstrapState.Syncing -> {
-            val shimmerBrush = rememberShimmerBrush()
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.systemBars),
                     userScrollEnabled = false
                 ) {
                     items(3) {
-                        PostCardSkeleton(brush = shimmerBrush)
+                        PostCardSkeleton()
                     }
                 }
             }
@@ -770,7 +774,7 @@ fun DesperseNavGraph(
                     postId = postId,
                     onBack = { navController.popBackStack() },
                     onUserClick = { slug -> navController.navigate("profile/$slug") },
-                    onEditPost = { id -> navController.navigate("post/$id/edit") }
+                    onEditPost = { id -> navController.navigate("edit_flow/$id") }
                 )
             }
             composable("profile/{slug}") { backStackEntry ->

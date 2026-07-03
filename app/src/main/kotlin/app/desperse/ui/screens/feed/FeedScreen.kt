@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -73,7 +74,6 @@ import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.components.WalletPickerSheet
 import app.desperse.ui.components.WalletSheet
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 
@@ -330,7 +330,6 @@ fun FeedScreen(
         ) {
             when {
                 uiState.isLoading && uiState.posts.isEmpty() -> {
-                    val shimmerBrush = rememberShimmerBrush()
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
@@ -339,7 +338,7 @@ fun FeedScreen(
                         userScrollEnabled = false
                     ) {
                         items(3) {
-                            PostCardSkeleton(brush = shimmerBrush)
+                            PostCardSkeleton()
                         }
                     }
                 }
@@ -530,11 +529,13 @@ private fun FeedTopBar(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        onClick = onTitleClick
-                    )
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = onTitleClick
+                        )
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.desperse_logo),
@@ -658,6 +659,7 @@ private fun FeedTab(
 
     Column(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

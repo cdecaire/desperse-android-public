@@ -23,7 +23,6 @@ import app.desperse.core.arweave.CreditApproval
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.StorageCreditsSkeleton
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.theme.toneDestructive
 import app.desperse.ui.theme.toneStandard
 import app.desperse.ui.theme.toneWarning
@@ -71,7 +70,6 @@ fun StorageCreditsScreen(
     ) { padding ->
         if (uiState.isLoading) {
             StorageCreditsSkeleton(
-                brush = rememberShimmerBrush(),
                 modifier = Modifier.padding(padding)
             )
         } else {

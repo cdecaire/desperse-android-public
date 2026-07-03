@@ -2,17 +2,20 @@ package app.desperse.ui.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material.ripple.RippleAlpha
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
  * Desperse Light Color Scheme
@@ -130,8 +133,6 @@ fun DesperseTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            window.navigationBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme
@@ -139,10 +140,38 @@ fun DesperseTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = DesperseTypography,
-        shapes = DesperseShapes,
-        content = content
-    )
+    // Override Material's ripple wave with a flat zinc-tone press fill (DESIGN.md L1247-1249)
+    val rippleConfig = if (darkTheme) DesperseRippleConfigDark else DesperseRippleConfigLight
+
+    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+    CompositionLocalProvider(LocalRippleConfiguration provides rippleConfig) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = DesperseTypography,
+            shapes = DesperseShapes,
+            content = content
+        )
+    }
 }
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+private val DesperseRippleConfigDark = RippleConfiguration(
+    color = DesperseColors.Zinc800,
+    rippleAlpha = RippleAlpha(
+        pressedAlpha = 1.0f,
+        focusedAlpha = 1.0f,
+        draggedAlpha = 1.0f,
+        hoveredAlpha = 1.0f
+    )
+)
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+private val DesperseRippleConfigLight = RippleConfiguration(
+    color = DesperseColors.Zinc100,
+    rippleAlpha = RippleAlpha(
+        pressedAlpha = 1.0f,
+        focusedAlpha = 1.0f,
+        draggedAlpha = 1.0f,
+        hoveredAlpha = 1.0f
+    )
+)

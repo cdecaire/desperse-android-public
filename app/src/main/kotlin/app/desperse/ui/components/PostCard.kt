@@ -41,11 +41,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.CircularProgressIndicator
 import app.desperse.data.model.CollectState
 import app.desperse.data.model.Post
 import app.desperse.data.model.PurchaseState
 import app.desperse.ui.components.media.PostMedia
+import app.desperse.ui.haptics.HapticEvent
+import app.desperse.ui.haptics.rememberDesperseHaptics
+import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseComponentSpacing
 import app.desperse.ui.theme.DesperseRadius
 import app.desperse.ui.theme.DesperseSizes
@@ -228,16 +232,21 @@ private fun PostCardHeader(
 
         // Name and metadata row
         Column(modifier = Modifier.weight(1f)) {
-            // Display name with optional verified badge
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Display name with optional role badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
                     text = post.user.displayName ?: post.user.slug,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
+                RoleBadgePill(role = post.user.role)
             }
 
             // Username · time · type label (inline)
@@ -469,7 +478,7 @@ private fun PostCardMedia(
                         // Alternate between larger and smaller particles
                         val sizeMult = if (i % 2 == 0) 1f else 0.6f
                         drawCircle(
-                            color = if (i % 3 == 0) Color.White else particleColor,
+                            color = if (i % 3 == 0) DesperseColors.Zinc50 else particleColor,
                             radius = particleSize * sizeMult,
                             center = Offset(px, py),
                             alpha = particleAlpha
@@ -513,7 +522,7 @@ private fun MediaPill(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White
+            color = DesperseColors.Zinc50
         )
     }
 }
@@ -548,6 +557,17 @@ private fun PostCardActions(
     collectState: CollectState = CollectState.Idle,
     purchaseState: PurchaseState = PurchaseState.Idle
 ) {
+    val haptics = rememberDesperseHaptics()
+    LaunchedEffect(collectState) {
+        if (collectState is CollectState.Success) {
+            haptics.perform(HapticEvent.CollectSuccess)
+        }
+    }
+    LaunchedEffect(purchaseState) {
+        if (purchaseState is PurchaseState.Success) {
+            haptics.perform(HapticEvent.CollectSuccess)
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -630,6 +650,7 @@ private fun ActionButton(
         modifier = Modifier
             .clip(RoundedCornerShape(DesperseRadius.sm))
             .clickable { onClick() }
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .padding(DesperseSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.xs)
@@ -709,6 +730,7 @@ private fun BuyButton(
         modifier = Modifier
             .clip(RoundedCornerShape(DesperseRadius.sm))
             .clickable(enabled = isClickable) { onClick() }
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .padding(DesperseSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.xs)

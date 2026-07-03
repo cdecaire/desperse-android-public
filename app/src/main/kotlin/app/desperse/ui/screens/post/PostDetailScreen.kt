@@ -39,6 +39,7 @@ import app.desperse.ui.components.FaIcons
 import app.desperse.ui.components.MentionText
 import app.desperse.ui.components.InstalledWallet
 import app.desperse.ui.components.PostCardMenuSheet
+import app.desperse.ui.components.RoleBadgeInline
 import app.desperse.ui.components.ReportContentPreview
 import app.desperse.ui.components.ReportSheet
 import app.desperse.ui.components.WalletPickerSheet
@@ -48,7 +49,9 @@ import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.GeometricAvatar
 import app.desperse.ui.components.LoadingMoreIndicator
 import app.desperse.ui.components.LoadingState
-import app.desperse.ui.components.rememberShimmerBrush
+import app.desperse.ui.components.shimmer
+import app.desperse.ui.haptics.HapticEvent
+import app.desperse.ui.haptics.rememberDesperseHaptics
 import app.desperse.ui.components.media.ImageContext
 import app.desperse.ui.components.media.ImageOptimization
 import app.desperse.ui.components.media.MediaType
@@ -92,6 +95,22 @@ fun PostDetailScreen(
     val activity = LocalContext.current as Activity
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val haptics = rememberDesperseHaptics()
+
+    LaunchedEffect(uiState.collectState) {
+        when (uiState.collectState) {
+            is CollectState.Success -> haptics.perform(HapticEvent.CollectSuccess)
+            is CollectState.Failed -> haptics.perform(HapticEvent.Error)
+            else -> {}
+        }
+    }
+    LaunchedEffect(uiState.purchaseState) {
+        when (uiState.purchaseState) {
+            is PurchaseState.Success -> haptics.perform(HapticEvent.CollectSuccess)
+            is PurchaseState.Failed -> haptics.perform(HapticEvent.Error)
+            else -> {}
+        }
+    }
     var showMenu by remember { mutableStateOf(false) }
     var showDeletePostConfirmation by remember { mutableStateOf(false) }
     var showBlockConfirmation by remember { mutableStateOf(false) }
@@ -256,6 +275,7 @@ fun PostDetailScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
+                                haptics.perform(HapticEvent.DestructiveConfirm)
                                 showBlockConfirmation = false
                                 viewModel.blockUser(blockTarget.id, blockTarget.slug, onBlocked = onBack)
                             },
@@ -285,6 +305,7 @@ fun PostDetailScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
+                            haptics.perform(HapticEvent.DestructiveConfirm)
                             showDeletePostConfirmation = false
                             viewModel.deletePost(onDeleted = onBack)
                         },
@@ -744,13 +765,20 @@ private fun PostDetailHeader(
 
         // User info
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = post.user.displayName ?: post.user.slug,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = post.user.displayName ?: post.user.slug,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                RoleBadgeInline(role = post.user.role)
+            }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -804,6 +832,7 @@ private fun PostDetailActions(
                 modifier = Modifier
                     .clip(MaterialTheme.shapes.small)
                     .clickable(onClick = onLikeClick)
+                    .heightIn(min = 48.dp)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -827,6 +856,7 @@ private fun PostDetailActions(
                 modifier = Modifier
                     .clip(MaterialTheme.shapes.small)
                     .clickable(onClick = onCommentClick)
+                    .heightIn(min = 48.dp)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1244,6 +1274,7 @@ private fun DetailTab(
     Column(
         modifier = modifier
             .clickable { onClick() }
+            .heightIn(min = 48.dp)
             .padding(top = DesperseSpacing.md, bottom = 0.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -1447,9 +1478,7 @@ private fun formatFullDate(timestamp: String): String {
  */
 @Composable
 private fun PostDetailSkeleton(modifier: Modifier = Modifier) {
-    val brush = rememberShimmerBrush()
     Column(modifier = modifier) {
-        // Header: avatar + name
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1460,7 +1489,7 @@ private fun PostDetailSkeleton(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(brush)
+                    .shimmer()
             )
             Spacer(Modifier.width(DesperseSpacing.sm))
             Column {
@@ -1469,7 +1498,7 @@ private fun PostDetailSkeleton(modifier: Modifier = Modifier) {
                         .width(120.dp)
                         .height(14.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(brush)
+                        .shimmer()
                 )
                 Spacer(Modifier.height(6.dp))
                 Box(
@@ -1477,38 +1506,35 @@ private fun PostDetailSkeleton(modifier: Modifier = Modifier) {
                         .width(80.dp)
                         .height(12.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(brush)
+                        .shimmer()
                 )
             }
         }
 
-        // Media placeholder (full aspect ratio for detail)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(0.8f)
-                .background(brush)
+                .shimmer()
         )
 
-        // Actions row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = DesperseSpacing.md, vertical = DesperseSpacing.sm),
             horizontalArrangement = Arrangement.spacedBy(DesperseSpacing.lg)
         ) {
-            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
-            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
-            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).shimmer())
+            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).shimmer())
+            Box(Modifier.width(40.dp).height(14.dp).clip(RoundedCornerShape(4.dp)).shimmer())
         }
 
-        // Caption lines
         Column(modifier = Modifier.padding(horizontal = DesperseSpacing.md)) {
-            Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Box(Modifier.fillMaxWidth(0.9f).height(14.dp).clip(RoundedCornerShape(4.dp)).shimmer())
             Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth(0.65f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Box(Modifier.fillMaxWidth(0.65f).height(14.dp).clip(RoundedCornerShape(4.dp)).shimmer())
             Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth(0.4f).height(12.dp).clip(RoundedCornerShape(4.dp)).background(brush))
+            Box(Modifier.fillMaxWidth(0.4f).height(12.dp).clip(RoundedCornerShape(4.dp)).shimmer())
         }
     }
 }

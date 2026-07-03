@@ -51,7 +51,6 @@ import app.desperse.ui.components.ActivityItemSkeleton
 import app.desperse.ui.components.EmptyState
 import app.desperse.ui.components.ErrorState
 import app.desperse.ui.components.LoadingMoreIndicator
-import app.desperse.ui.components.rememberShimmerBrush
 import app.desperse.ui.components.FaIcon
 import app.desperse.ui.components.FaIconStyle
 import app.desperse.ui.components.FaIcons
@@ -104,10 +103,9 @@ fun ActivityScreen(
     ) { padding ->
         when {
             uiState.isLoading -> {
-                val brush = rememberShimmerBrush()
                 Column(modifier = Modifier.padding(padding)) {
                     repeat(8) {
-                        ActivityItemSkeleton(brush = brush)
+                        ActivityItemSkeleton()
                     }
                 }
             }

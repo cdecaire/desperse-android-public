@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.desperse.ui.theme.DesperseColors
 import app.desperse.ui.theme.DesperseSizes
 import app.desperse.ui.theme.DesperseSpacing
 import app.desperse.ui.theme.DesperseTones
@@ -146,7 +147,7 @@ fun DesperseSnackbar(
                 FaIcon(
                     icon = icon,
                     size = DesperseSizes.iconXs,
-                    tint = Color.White
+                    tint = DesperseColors.Zinc50
                 )
             }
 

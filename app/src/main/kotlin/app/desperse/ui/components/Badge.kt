@@ -208,13 +208,13 @@ fun NotificationBadge(
             Text(
                 text = if (count > 9) "$count" else "$count",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White
+                color = DesperseColors.Zinc50
             )
         } else {
             Text(
                 text = "99+",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White
+                color = DesperseColors.Zinc50
             )
         }
     }

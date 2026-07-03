@@ -56,7 +56,8 @@ data class ProfileUser(
     val link: String? = null,
     val twitterUsername: String? = null,
     val instagramUsername: String? = null,
-    val createdAt: String? = null
+    val createdAt: String? = null,
+    val role: String? = null
 )
 
 @Serializable
