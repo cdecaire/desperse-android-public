@@ -40,7 +40,6 @@ val changelogs = mapOf(
             "Refreshed visual design with a new color and type system",
             "Admin and moderator badges on posts and profiles",
             "Haptic feedback for likes, collects, and confirmations",
-            "Fixed blocked users' content lingering in Explore",
             "Bug fixes and polish",
         )
     ),
