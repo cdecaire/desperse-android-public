@@ -64,6 +64,31 @@ class ExploreViewModel @Inject constructor(
     init {
         load()
         observePostUpdates()
+        observeBlockUpdates()
+    }
+
+    // === Block Sync ===
+
+    private fun observeBlockUpdates() {
+        viewModelScope.launch {
+            postUpdateManager.blockUpdates.collect { update ->
+                if (update.isBlocked) {
+                    // Drop the blocked user's content from cached Explore state immediately,
+                    // so it doesn't linger until the next full refresh.
+                    _uiState.update { state ->
+                        state.copy(
+                            trendingPosts = state.trendingPosts.filter { it.user.id != update.userId },
+                            suggestedCreators = state.suggestedCreators.filter { it.id != update.userId },
+                            searchUsers = state.searchUsers.filter { it.id != update.userId },
+                            searchPosts = state.searchPosts.filter { it.user.id != update.userId }
+                        )
+                    }
+                } else {
+                    // Unblock — refetch so their content can reappear.
+                    refresh()
+                }
+            }
+        }
     }
 
     fun load() {
